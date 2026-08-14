@@ -217,6 +217,12 @@ button{font-family:var(--font-titles);cursor:pointer;}
    half-finished login can't show stale/empty Home content underneath it. */
 body:not(.login-mode) #loginScreen{display:none;}
 body.login-mode #home, body.login-mode #deck{display:none;}
+/* The index/deck-switcher/"volver al Home" chrome and the "Home" shortcut only mean anything once
+   a deck's data exists — on the login screen they were previously reachable-looking (hover-zones
+   don't check login state) but led nowhere useful. Zoom/language/theme/fullscreen stay available
+   (explicit ask, 2026-08-14) since those are pure UI prefs with no data dependency. */
+body.login-mode .hover-zone.left, body.login-mode #tocTrigger, body.login-mode #leftMenu{display:none;}
+body.login-mode #homeToggle{display:none;}
 
 
 /* ================= DECK ================= */
@@ -869,7 +875,9 @@ body.home-mode #homeToggle{display:none;} /* meaningless while already on Home *
 }
 .zoom-group button:hover:not(:disabled){opacity:1;background:var(--color-soft-blue);}
 .zoom-group button:disabled{opacity:.28;cursor:default;}
-.zoom-pct{font-size:11px;font-weight:700;color:var(--text-secondary);min-width:32px;text-align:center;}
+.zoom-pct{font-size:11px;font-weight:700;color:var(--text-secondary);min-width:32px;text-align:center;cursor:text;}
+.zoom-pct-input{font:inherit;font-size:11px;font-weight:700;color:var(--text-primary);width:34px;text-align:center;border:1px solid var(--brand-accent);border-radius:3px;background:var(--bg-card);padding:0;-moz-appearance:textfield;}
+.zoom-pct-input::-webkit-outer-spin-button,.zoom-pct-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 body.home-mode .zoom-group{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);}
 body.home-mode .zoom-group button{color:#fff;}
 body.home-mode .zoom-pct{color:rgba(255,255,255,.85);}
@@ -2393,6 +2401,51 @@ function updateZoomUi(){
   document.getElementById('zoomOut').disabled = z <= ZOOM_MIN + 1e-9;
   document.getElementById('zoomIn').disabled = z >= ZOOM_MAX - 1e-9;
 }
+/* Double-click the % to type an exact value (explicit ask, 2026-08-14) — swaps the <span> for a
+   number <input> in place, same MIN/MAX clamp as the +/- buttons so a typed value can't exceed
+   what this deck's auto-fit system is designed to handle. Sets slideZoom (the MANUAL half of
+   getZoom()'s product, see that function's comment) to whatever value makes the COMBINED zoom
+   equal the typed percentage, dividing out the current autoFitScale so typing "120" means "120%
+   of actual size," not "120% on top of whatever auto-fit already applied." */
+function startZoomEdit(){
+  const id = currentSlideId();
+  if(!ZOOMABLE_SLIDES[id]) return;
+  const pctEl = document.getElementById('zoomPct');
+  const currentPct = Math.round(getZoom(id) * 100);
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'zoom-pct-input';
+  input.value = currentPct;
+  pctEl.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const restore = () => { if(document.body.contains(input)) input.replaceWith(pctEl); };
+  const commit = () => {
+    if(done) return; done = true;
+    const requested = Math.round(Number(input.value));
+    const clamped = Number.isFinite(requested) ? Math.max(ZOOM_MIN*100, Math.min(ZOOM_MAX*100, requested)) : currentPct;
+    const key = zoomStorageKey(id);
+    // Clamp the MANUAL component too (not just the requested %), same invariant adjustZoom's own
+    // +/- math keeps slideZoom[key] under — otherwise a low autoFitScale at edit time (heavy
+    // vertical shrink already in effect) could divide out to a manual value past ZOOM_MAX, which
+    // would then persist to localStorage and outlive whatever caused that shrink.
+    const rawManual = (clamped/100) / (autoFitScale[id]||1);
+    slideZoom[key] = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, rawManual)) * 100) / 100;
+    saveSlideZoom();
+    ZOOMABLE_SLIDES[id]();
+    restore();
+    updateZoomUi();
+    if(Number.isFinite(requested) && clamped !== requested) flashZoomCapped();
+  };
+  const cancel = () => { if(done) return; done = true; restore(); };
+  input.addEventListener('keydown', e => {
+    if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+}
+document.getElementById('zoomPct').addEventListener('dblclick', startZoomEdit);
 
 /* Shrinks delta font-size (never anything else — actual/budget/labels stay put) only when some
    nowrap cell's content still doesn't fit its own box at full size — a DIFFERENT problem from
@@ -3027,16 +3080,22 @@ function slideA(){
         ? `<div class="metric-cell muted"><div class="mc-actual${(c.key==='FullCmPctShort'||c.key==='Impact')?' '+mcPctSignClass(h.av):''}">${h.fmt(h.av)}</div></div>`
         : (!monthComplete && isPacingMetric(c.key))
           ? pacingCell(h.av, h.bv, h.fmt, c.key!=='Spend')
-          : laminaAMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp);
+          // Month complete + a pacing metric: pacing itself no longer means anything (100% is a
+          // given at month-end) -- explicit ask, 2026-08-14: plain % diff, same single-line
+          // format YoY uses (metricCell with no splitDelta), not Lámina A's own usual 2-line
+          // split (laminaAMetricCell) which every OTHER metric here keeps unconditionally.
+          : monthComplete && isPacingMetric(c.key)
+            ? metricCell(h.av, h.bv, h.fmt, h.invert, h.pp)
+            : laminaAMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp);
     return `<div class="bh-kpi${h.highlight?' highlight':''}${h.muted||h.semaphore?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
   }).join('');
 
   function chCellHtml(key, a, b){
     switch(key){
-      case 'Spend': return monthComplete ? laminaAMetricCell(a.Spend, b.Spend, fmtUSD, true, false) : pacingCell(a.Spend, b.Spend, fmtUSD, false);
+      case 'Spend': return monthComplete ? metricCell(a.Spend, b.Spend, fmtUSD, true, false) : pacingCell(a.Spend, b.Spend, fmtUSD, false);
       case 'SpendShare': { const s = bl.Spend ? a.Spend/bl.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
-      case 'Leads': return monthComplete ? laminaAMetricCell(a.Leads, b.Leads, fmtNum, false, false) : pacingCell(a.Leads, b.Leads, fmtNum, true);
-      case 'Sales': return monthComplete ? laminaAMetricCell(a.Sales, b.Sales, fmtNum, false, false) : pacingCell(a.Sales, b.Sales, fmtNum, true);
+      case 'Leads': return monthComplete ? metricCell(a.Leads, b.Leads, fmtNum, false, false) : pacingCell(a.Leads, b.Leads, fmtNum, true);
+      case 'Sales': return monthComplete ? metricCell(a.Sales, b.Sales, fmtNum, false, false) : pacingCell(a.Sales, b.Sales, fmtNum, true);
       case 'LeadsShare': { const s = bl.Leads ? a.Leads/bl.Leads : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
       case 'SalesShare': { const s = totalSales ? a.Sales/totalSales : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
       case 'CPL': return laminaAMetricCell(cpl(a), cpl(b), fmtUSD, true, false);
@@ -3044,7 +3103,7 @@ function slideA(){
       case 'CMPS': return laminaAMetricCell(cmps(a), cmps(b), fmtUSD, true, false);
       case 'AvgPrice': return laminaAMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
       case 'MarginPct': return laminaAMetricCell(mncc(a), mncc(b), fmtPct, false, true);
-      case 'NewCash': return monthComplete ? laminaAMetricCell(a.NewCash, b.NewCash, fmtUSD, false, false) : pacingCell(a.NewCash, b.NewCash, fmtUSD, true);
+      case 'NewCash': return monthComplete ? metricCell(a.NewCash, b.NewCash, fmtUSD, false, false) : pacingCell(a.NewCash, b.NewCash, fmtUSD, true);
       case 'NewCashSemaphore': return mnccTemperatureCell(mncc(a), mncc(b));
       case 'Impact': { const v = impact(a,b); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
       case 'LtvShort': return `<div class="metric-cell muted"><div class="mc-actual">${fmtUSD(ltvShort(a))}</div></div>`;
