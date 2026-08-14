@@ -415,20 +415,27 @@ function buildYoyDailyByCountry(dailyRows, channelKpiRows, brandedTypeRows, isBr
 }
 
 /**
- * DATA.yoyDailyByMktOrg (Junior decks ONLY, added 2026-08-14 -- explicit ask): per-day Branded
- * totals split by marketing_organization instead of by country, so the client can explain "how
- * much of this metric's total came from OE Adult's own investment vs. Junior's own investment"
- * for WHATEVER date range the YOY lámina's custom-range panel currently has active (same reason
- * buildYoyDailyByCountry exists as a flat per-day array instead of a fixed month -- see that
- * function's own callers in this file for the aggregation pattern this mirrors).
+ * DATA.yoyDailyByMktOrg (Junior decks ONLY, added 2026-08-14 -- explicit ask): per-day, per-country
+ * Branded totals split by marketing_organization, so the client can explain "how much of this
+ * metric's total (for the WHOLE region, or for one specific country) came from OE Adult's own
+ * investment vs. Junior's own investment" for WHATEVER date range the YOY lámina's custom-range
+ * panel currently has active (same reason buildYoyDailyByCountry exists as a flat per-day array
+ * instead of a fixed month -- see that function's own callers in this file for the aggregation
+ * pattern this mirrors). Country included (2026-08-14, widened same day the feature shipped --
+ * explicit ask: "si me paro en leads de Argentina... no lo veo" -- the first cut only summed to a
+ * single region-wide total) and bucketed the SAME way buildYoyDailyByCountry already does, so a
+ * click on a specific country's name can filter to just that country's rows.
  * Deliberately Spend/Leads/Sales/NewCash ONLY -- those are the 4 fields raw.dailyRows carries at
  * marketing_organization grain. LtvShort/FullUnitCmShort/FullCmPctShort/CMPS/%MNCC/Impact all
  * depend on channelKpiRows, which has NO marketing_organization dimension by design (see
  * 03_export_deck_json.py's own module docstring for why joining it in would double-count) -- so
  * there is no honest way to split those by org, and the client-side modal for this feature
- * deliberately never offers them rather than fabricating a number. CPL/Conversion ARE offered
- * client-side despite not being summed here, because both are simple ratios of Spend/Leads/Sales
- * (all 3 present) computed on the fly, not a field that needs its own aggregation pass.
+ * deliberately never offers them rather than fabricating a number.
+ * Spend itself is a special case handled ENTIRELY client-side, not here: marketing_organization
+ * ='OE' is always $0 in this array (OE Adult doesn't buy media "attributed to" Junior's funnel --
+ * confirmed on real data), so for Spend (and MediaSpend/PaidOrganicSpend, which aren't even in
+ * this array) the client instead cross-references the SIBLING OE deck's own yoyDailyByCountry for
+ * OE's column -- see mktOrgGridModalHtml() in this same file for exactly why and how.
  * Real data note found verifying this (2026-08-14): marketing_organization isn't always exactly
  * "OE"/"Open English Junior" -- a small "NextU" residual exists too (confirmed on JR-LATAM: ~0.06%
  * of Sales, $0 Spend/Leads) -- the client-side modal buckets this into a 3rd "Otros" row rather
@@ -436,14 +443,15 @@ function buildYoyDailyByCountry(dailyRows, channelKpiRows, brandedTypeRows, isBr
  */
 function buildYoyDailyByMktOrg(dailyRows, isBrazilDeck) {
   const byKey = {};
-  function getRow(date, marketingOrg) {
-    const k = date + '|' + marketingOrg;
-    return byKey[k] || (byKey[k] = { date, marketingOrg, Spend: 0, Leads: 0, Sales: 0, NewCash: 0 });
+  function getRow(date, country, marketingOrg) {
+    const k = date + '|' + country + '|' + marketingOrg;
+    return byKey[k] || (byKey[k] = { date, country, marketingOrg, Spend: 0, Leads: 0, Sales: 0, NewCash: 0 });
   }
   for (const r of dailyRows) {
     if (r.channel_grouping !== 'Brand TV Channels') continue;
-    if (bucketCountry(r.country, isBrazilDeck) === null) continue; // same junk/aggregation-code drop as buildYoyDailyByCountry
-    const row = getRow(r.date, r.marketing_organization);
+    const c = bucketCountry(r.country, isBrazilDeck);
+    if (c === null) continue; // same junk/aggregation-code drop as buildYoyDailyByCountry
+    const row = getRow(r.date, c, r.marketing_organization);
     row.Spend += r.spend || 0;
     row.Leads += r.leadsEligible || 0;
     row.Sales += r.coreEnrollmentsTotal || 0;
