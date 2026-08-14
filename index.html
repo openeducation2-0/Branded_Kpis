@@ -1878,19 +1878,16 @@ let DECK_ID = 'OE-LATAM'; // brand+region key for the CURRENTLY OPEN deck — se
    default state where those two are off and the combined "Paid Social + Organic" row is on),
    and which of the 8 metric COLUMNS show, independently, in both the table and the hero.
    Persisted so a reviewer's chosen view survives a refresh, same pattern as theme/lang. */
-const LS_LAMINA_A_VIEW = 'branformance_laminaA_view';
-/* Spend/New Cash Core/Impact are absolute $ amounts that compare a still-incomplete MTD
-   actual against a FULL-MONTH budget — an apples-to-oranges comparison while the month is
-   still running, so they default to HIDDEN until the data itself shows the month is fully
-   closed (asOfDay === daysInMonth for the current deck's data). This is NOT today's system
-   clock — the underlying data file could be stale — it's purely "does DATA.meta say we have
-   data through the last day of the month". The 5 rate/ratio metrics (%Leads, %Sales, CPL,
-   CMPS, MNCC) are always meaningful mid-month, so they always default to visible. */
+const LS_LAMINA_A_VIEW = 'branformance_laminaA_view_v2';
+/* Default view set 2026-08-14 per user's own screenshot of this lámina (explicit ask, same
+   treatment as YOY's group-menu screenshot) — supersedes the old month-completeness-gated
+   default (Spend/NewCash/Impact used to stay hidden until asOfDay===daysInMonth, to avoid an
+   apples-to-oranges MTD-actual-vs-full-month-budget comparison); the user's screenshot shows
+   Spend/NewCash visible mid-month, so that gate is gone in favor of this fixed set. */
 function defaultLaminaAView(){
-  const monthComplete = DATA.meta.asOfDay === DATA.meta.daysInMonth;
   return {
     rows: {branded:true, paidSocialPlusOrganic:true, paidSocialASC:false, paidSocialNoASC:false, google:true, others:true},
-    cols: {Spend:monthComplete, SpendShare:false, Leads:false, LeadsShare:true, Sales:false, SalesShare:true, CPL:true, Conversion:true, CMPS:true, AvgPrice:false, MarginPct:true, NewCash:monthComplete, Impact:monthComplete, LtvShort:true, FullUnitCmShort:true, FullCmPctShort:true, NewCashSemaphore:true},
+    cols: {Spend:true, SpendShare:false, Leads:true, LeadsShare:true, Sales:false, SalesShare:true, CPL:true, Conversion:true, CMPS:false, AvgPrice:false, MarginPct:true, NewCash:true, Impact:false, LtvShort:false, FullUnitCmShort:false, FullCmPctShort:true, NewCashSemaphore:true},
   };
 }
 /* Was initialized at top level (`let laminaAView = defaultLaminaAView()`) back when DATA was
@@ -1919,12 +1916,13 @@ let laminaAValueVis = {hideActual:false, hideBudget:false};
 function saveLaminaAValueVis(){ localStorage.setItem(LS_LAMINA_A_VALUE_VIS, JSON.stringify(laminaAValueVis)); }
 
 /* Daily Tracker por País — column-only filter (no row filter: the country list is fixed, it's
-   never a choice). All 11 columns default to VISIBLE, unlike Lámina A's Spend/NewCash/Impact —
-   there's no month-completeness unfairness here, since the budget side is already summed only
-   through the same cutoff day as the actual (see build_data_all.py's add_daily_tracker_by_country),
-   so every column is a fair direct variance at any point in the month. */
-const LS_DAILY_TRACKER_VIEW = 'branformance_dailyTracker_view';
-let dailyTrackerCols = {Spend:true, SpendShare:false, Leads:false, LeadsShare:true, Sales:false, SalesShare:true, CPL:true, Conversion:true, CMPS:true, AvgPrice:true, MarginPct:true, NewCash:true, Impact:true, LtvShort:true, FullUnitCmShort:true, FullCmPctShort:true, NewCashSemaphore:true};
+   never a choice). Every column is a fair direct variance at any point in the month (the budget
+   side is already summed only through the same cutoff day as the actual — see
+   build_data_all.py's add_daily_tracker_by_country) so, unlike Lámina A, there's no
+   month-completeness reasoning behind which start visible; the set below is a fixed default per
+   the user's own screenshot of this lámina (explicit ask, 2026-08-14). */
+const LS_DAILY_TRACKER_VIEW = 'branformance_dailyTracker_view_v2';
+let dailyTrackerCols = {Spend:true, SpendShare:false, Leads:true, LeadsShare:false, Sales:true, SalesShare:false, CPL:true, Conversion:true, CMPS:false, AvgPrice:false, MarginPct:true, NewCash:true, Impact:false, LtvShort:false, FullUnitCmShort:false, FullCmPctShort:true, NewCashSemaphore:true};
 (function loadDailyTrackerView(){
   try{
     const saved = JSON.parse(localStorage.getItem(LS_DAILY_TRACKER_VIEW)||'null');
