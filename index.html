@@ -1095,6 +1095,23 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mktorg-cell.mktorg-total{background:color-mix(in srgb, var(--brand-accent) 10%, transparent);}
 .mktorg-cell.mktorg-total .mktorg-cell-val{color:var(--brand-accent);}
 .mktorg-empty{padding:20px;text-align:center;color:var(--text-secondary);font-size:var(--text-sm);}
+/* Redesigned 2026-08-14 (3rd pass): a scrollable wrapper (fallback only — the 'xl' modal size is
+   sized to fit most filter combinations without it) holding two independent sections — the
+   share+total grid above stays as-is for Leads/Sales/NewCash, and a 2nd comparison-only mini-grid
+   (OE Adult/OE Junior, no Total column) reuses the SAME .metric-cell markup the main table already
+   renders for every other visible metric, just centered instead of table-aligned. */
+.mktorg-modal-scroll{flex:1;min-height:0;overflow-y:auto;margin-top:var(--space-4);padding-right:4px;}
+.mktorg-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin:10px 0 4px;}
+.mktorg-section-title:first-child{margin-top:0;}
+.mktorg-cmp-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:0 10px;align-items:center;}
+.mktorg-cmp-label{font-size:var(--text-sm);font-weight:600;color:var(--text-primary);padding:3px 0;border-top:1px solid var(--border-soft);}
+.mktorg-cmp-cell{text-align:center;padding:3px 0;border-top:1px solid var(--border-soft);}
+.mktorg-cmp-cell .metric-cell{display:inline-flex;flex-direction:column;align-items:center;}
+/* Tighter than the default .mc-budget/.mc-delta spacing (meant for roomier table/hero contexts) —
+   this modal can show up to 13 comparison rows at once, so every row needs to stay as compact as
+   legibility allows to minimize how often the scroll fallback above actually triggers. */
+.mktorg-cmp-cell .mc-budget{margin-top:0;}
+.mktorg-cmp-cell .mc-delta{margin-top:0;}
 /* Item 7's click affordance — explicit ask: no icon, just the country name (or the hero's own
    label) itself is clickable. A background highlight on the row's name doubles as feedback for
    the whole .ch-row (which has hover disabled at the row level, see .ch-row.no-click above);
@@ -2379,37 +2396,25 @@ function sumYoyByCountry(byCountryMap, countries, fields){
   return out;
 }
 function siblingOEDeckId(){ return DECK_ID==='JR-BR' ? 'OE-BR' : 'OE-LATAM'; }
-/* The only 6 metrics this modal can ever show, each tagged with HOW its "OE Adult" column is
-   sourced — everything else (ratios, Short-KPI-derived metrics, the 3 %-Share columns, the
-   semaphore) is deliberately absent, see buildYoyDailyByMktOrg's own comment for the full reasoning.
-   - 'orgSplit' (Leads/Sales/NewCash): the real marketing_organization='OE' slice within THIS
-     Junior deck's own funnel (yoyDailyByMktOrg) — a genuine funding-attribution split.
-   - 'crossDeck' (Spend/MediaSpend/PaidOrganicSpend): OE Adult doesn't spend money "attributed to"
-     Junior's funnel — that slice is always $0 in real data (confirmed) — so for money metrics,
-     "OE's own investment" instead means the SIBLING OE deck's own actual total (organization='OE'
-     rows, not a marketing_organization slice). Junior's column, for these 3, is Junior's OWN deck
-     total for the same metric+scope — this compares "OE's total investment" vs "Junior's total
-     investment" side by side, not a within-Junior attribution split like the other 3 metrics. */
-const MKTORG_GRID_METRICS = [
-  {key:'Spend', mode:'crossDeck', fmt:fmtUSD},
-  {key:'MediaSpend', mode:'crossDeck', fmt:fmtUSD},
-  {key:'PaidOrganicSpend', mode:'crossDeck', fmt:fmtUSD},
-  {key:'Leads', mode:'orgSplit', fmt:fmtNum},
-  {key:'Sales', mode:'orgSplit', fmt:fmtNum},
-  {key:'NewCash', mode:'orgSplit', fmt:fmtUSD},
-];
-function mktOrgRowValues(metricDef, countries){
+/* Redesigned 2026-08-14 (3rd pass, explicit ask): the share+total grid only ever made sense for
+   Leads/Sales/NewCash — a real within-Junior marketing_organization split that legitimately sums
+   to 100%. Spend/MediaSpend/PaidOrganicSpend are NOT attributable that way (OE Adult's own slice
+   inside Junior's funnel is always $0 in real data), so "OE's investment" for money metrics means
+   the SIBLING OE deck's own actual total instead (crossDeckBundle below) — two independent totals
+   compared side by side, not a split of one total, so no sum/share applies: "no se suman, no hay
+   total... no hay un share". Every ratio/Short-KPI metric derived that way (CPL, CMPS, MNCC, LTV
+   Short, etc.) follows the same rule, and per the explicit ask, ALL of them now appear here,
+   matching exactly which columns are visible in the table ("las mismas columnas que estén
+   visibles"), not a fixed hand-picked subset. */
+const MKTORG_SHARE_METRICS = new Set(['Leads','Sales','NewCash']);
+// Country-share columns (% of LatAm total — a different axis than OE-vs-Junior) and the
+// semaphore (a colored dot, not a value) never belong in this modal.
+const MKTORG_EXCLUDED_METRICS = new Set(['SpendShare','LeadsShare','SalesShare','NewCashSemaphore']);
+function mktOrgShareRowValues(key, countries){
   const range = yoyActiveActualRange();
   const weekdaySet = yoyWeekdaySet();
-  if(metricDef.mode==='crossDeck'){
-    const ownByCountry = aggregateYoyDaily(DATA.yoyDailyByCountry.current, range.start, range.end, weekdaySet);
-    const siblingByCountry = aggregateYoyDaily(DATA_BY_DECK[siblingOEDeckId()].yoyDailyByCountry.current, range.start, range.end, weekdaySet);
-    const jrV = sumYoyByCountry(ownByCountry, countries, [metricDef.key])[metricDef.key];
-    const oeV = sumYoyByCountry(siblingByCountry, countries, [metricDef.key])[metricDef.key];
-    return {oeV, jrV, total: oeV+jrV};
-  }
   const byOrg = aggregateMktOrgDaily(DATA.yoyDailyByMktOrg, range.start, range.end, weekdaySet, countries);
-  const sumField = org => (byOrg[org] && byOrg[org][metricDef.key]) || 0;
+  const sumField = org => (byOrg[org] && byOrg[org][key]) || 0;
   const oeV = sumField('OE'), jrV = sumField('Open English Junior');
   // Real data fact found building this feature: marketing_organization isn't ALWAYS exactly
   // "OE"/"Open English Junior" — a small "NextU" residual exists too (confirmed on JR-LATAM: ~0.06%
@@ -2418,30 +2423,82 @@ function mktOrgRowValues(metricDef, countries){
   // columns (OE/Junior/Total) — so on the rare row where it's nonzero, OE%+Junior% legitimately
   // add up to a little under 100%, which is more honest than pretending that slice doesn't exist.
   let otherV = 0;
-  Object.keys(byOrg).forEach(k=>{ if(k!=='OE' && k!=='Open English Junior') otherV += (byOrg[k][metricDef.key]||0); });
+  Object.keys(byOrg).forEach(k=>{ if(k!=='OE' && k!=='Open English Junior') otherV += (byOrg[k][key]||0); });
   return {oeV, jrV, total: oeV+jrV+otherV};
 }
+/* One deck's yoyDailyByCountry, summed over a country scope, for BOTH the active actual range AND
+   its paired compare range — exactly the 2 numbers every comparison cell needs. current/prior are
+   aliases of the SAME full-history array (see aggregateYoyDaily's own comment) — "actual" vs.
+   "compare" here differ only by which date range gets summed. */
+function crossDeckBundle(deckId, countries){
+  const weekdaySet = yoyWeekdaySet();
+  const actualRange = yoyActiveActualRange(), compareRange = yoyActiveCompareRange();
+  const deck = DATA_BY_DECK[deckId];
+  const actualByCountry = aggregateYoyDaily(deck.yoyDailyByCountry.current, actualRange.start, actualRange.end, weekdaySet);
+  const compareByCountry = aggregateYoyDaily(deck.yoyDailyByCountry.prior, compareRange.start, compareRange.end, weekdaySet);
+  const fields = ['Spend','MediaSpend','PaidOrganicSpend','Leads','Sales','NewCash','FullCM','ProjRevShort','TotalEnrollments'];
+  return {actual: sumYoyByCountry(actualByCountry, countries, fields), compare: sumYoyByCountry(compareByCountry, countries, fields)};
+}
+/* Module-scope mirror of slideYoy()'s own yoyCellHtml() switch (same formulas, same yoyMetricCell
+   rendering) minus the 3 cases MKTORG_EXCLUDED_METRICS already drops. Duplicated rather than
+   reused directly because yoyCellHtml is closure-scoped inside slideYoy() and reads heroActual for
+   the Share cases this modal never shows anyway — copying the formula list is simpler than
+   threading heroActual through just to satisfy branches that can't be reached here. */
+function mktOrgMetricCell(key, a, b){
+  switch(key){
+    case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false);
+    case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false);
+    case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false);
+    case 'CPL': return yoyMetricCell(cpl(a), cpl(b), fmtUSD, true, false);
+    case 'MediaCPL': return yoyMetricCell(mediaCpl(a), mediaCpl(b), fmtUSD, true, false);
+    case 'Conversion': return yoyMetricCell(conversionRate(a), conversionRate(b), fmtPctConversion, false, true);
+    case 'CMPS': return yoyMetricCell(cmps(a), cmps(b), fmtUSD, true, false);
+    case 'AvgPrice': return yoyMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
+    case 'MarginPct': return yoyMetricCell(mncc(a), mncc(b), fmtPct, false, true);
+    case 'Impact': return yoyMetricCell(a.NewCash-a.Spend, b.NewCash-b.Spend, fmtUSD, false, false);
+    case 'LtvShort': return yoyMetricCell(ltvShort(a), ltvShort(b), fmtUSD, false, false);
+    case 'FullUnitCmShort': return yoyMetricCell(fullUnitCmShort(a), fullUnitCmShort(b), fmtUSD, false, false);
+    case 'FullCmPctShort': return yoyMetricCell(fullCmPct(a), fullCmPct(b), fmtPct, false, true, mcPctSignClass(fullCmPct(a)));
+  }
+  return '';
+}
 function mktOrgGridModalHtml(countries, scopeLabel){
-  const visibleMetrics = MKTORG_GRID_METRICS.filter(m => yoyView.cols[m.key]);
+  const visible = YOY_COL_DEFS.filter(c => yoyView.cols[c.key] && !MKTORG_EXCLUDED_METRICS.has(c.key));
+  const shareMetrics = visible.filter(c => MKTORG_SHARE_METRICS.has(c.key));
+  const cmpMetrics = visible.filter(c => !MKTORG_SHARE_METRICS.has(c.key));
   const cell = (v, fmt, pct, extraCls) => `<div class="mktorg-cell${extraCls?' '+extraCls:''}"><div class="mktorg-cell-val">${fmt(v)}</div><div class="mktorg-cell-pct">${pct}</div></div>`;
-  const rowsHtml = visibleMetrics.map(m=>{
-    const {oeV, jrV, total} = mktOrgRowValues(m, countries);
+  const shareRowsHtml = shareMetrics.map(m=>{
+    const {oeV, jrV, total} = mktOrgShareRowValues(m.key, countries);
+    const fmt = m.key==='NewCash' ? fmtUSD : fmtNum;
     const pctOf = v => fmtPct(total ? v/total : 0);
     return `<div class="mktorg-row-label">${colLabelYoy(m.key)}</div>
-      ${cell(oeV, m.fmt, pctOf(oeV))}
-      ${cell(jrV, m.fmt, pctOf(jrV))}
-      ${cell(total, m.fmt, fmtPct(total?1:0), 'mktorg-total')}`;
+      ${cell(oeV, fmt, pctOf(oeV))}
+      ${cell(jrV, fmt, pctOf(jrV))}
+      ${cell(total, fmt, fmtPct(total?1:0), 'mktorg-total')}`;
   }).join('');
-  const emptyNote = visibleMetrics.length ? '' : `<div class="mktorg-empty">${L('Ninguna métrica compatible está visible — actívala en Columnas.','No compatible metric is currently visible — enable one under Columns.')}</div>`;
-  return `<div class="modal-head">${iconChip('grid','var(--brand-accent)')}<h3>${scopeLabel} — ${L('por Marketing Organization','by Marketing Organization')}</h3></div>
+  const oeBundle = crossDeckBundle(siblingOEDeckId(), countries);
+  const jrBundle = crossDeckBundle(DECK_ID, countries);
+  const cmpRowsHtml = cmpMetrics.map(m=> `<div class="mktorg-cmp-label">${colLabelYoy(m.key)}</div>
+      <div class="mktorg-cmp-cell">${mktOrgMetricCell(m.key, oeBundle.actual, oeBundle.compare)}</div>
+      <div class="mktorg-cmp-cell">${mktOrgMetricCell(m.key, jrBundle.actual, jrBundle.compare)}</div>`).join('');
+  const emptyNote = visible.length ? '' : `<div class="mktorg-empty">${L('Ninguna métrica compatible está visible — actívala en Columnas.','No compatible metric is currently visible — enable one under Columns.')}</div>`;
+  const shareSection = !shareMetrics.length ? '' : `<div class="mktorg-section-title">${L('Distribución por Marketing Organization','Split by Marketing Organization')}</div>
     <div class="mktorg-grid">
       <div class="mktorg-row-label"></div>
       <div class="mktorg-grid-header">OE Adult</div>
       <div class="mktorg-grid-header">OE Junior</div>
       <div class="mktorg-grid-header">${L('Total','Total')}</div>
-      ${rowsHtml}
-    </div>
-    ${emptyNote}`;
+      ${shareRowsHtml}
+    </div>`;
+  const cmpSection = !cmpMetrics.length ? '' : `<div class="mktorg-section-title">${L('Comparación vs. período anterior','Comparison vs. prior period')}</div>
+    <div class="mktorg-cmp-grid">
+      <div class="mktorg-cmp-label"></div>
+      <div class="mktorg-grid-header">OE Adult</div>
+      <div class="mktorg-grid-header">OE Junior</div>
+      ${cmpRowsHtml}
+    </div>`;
+  return `<div class="modal-head">${iconChip('grid','var(--brand-accent)')}<h3>${scopeLabel} — ${L('por Marketing Organization','by Marketing Organization')}</h3></div>
+    <div class="mktorg-modal-scroll">${shareSection}${cmpSection}${emptyNote}</div>`;
 }
 /* Weekday multi-select — supports both interaction styles asked for: Ctrl/Cmd+click TOGGLES one
    day in/out of the current selection (like a file manager's ctrl-click), plain click-and-drag
@@ -4302,7 +4359,7 @@ function wireYoyMktOrgModalClicks(){
     el.addEventListener('click', ()=>{
       const raw = el.dataset.country;
       const countries = raw==='__SUBTOTAL__' ? REST_LATAM_SUBTOTAL_COUNTRIES : (raw==='__ALL__' ? null : raw);
-      openModal(null, mktOrgGridModalHtml(countries, el.dataset.countryLabel || raw));
+      openModal('xl', mktOrgGridModalHtml(countries, el.dataset.countryLabel || raw));
     });
   });
 }
