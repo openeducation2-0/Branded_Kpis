@@ -3813,9 +3813,11 @@ function finishBootstrap(){
 const GOOGLE_CLIENT_ID = '832432252141-dcs35ujfvbqg42lotiln2ndmouq53r9n.apps.googleusercontent.com';
 const DRIVE_EXPORT_FOLDER_ID = '1tF4sj9XWMJWDphx1nyodiDlqmnVYOMxr';
 const ALLOWED_EMAIL_DOMAIN = 'openenglish.com';
-// TODO(Phase 3): compute from real "today" once the daily refresh script is in place -- for now
-// pinned to the last cutoff this deck's data was actually verified against.
-const CURRENT_CUTOFF = '2026-08-12';
+// null = auto-detect cutoff as the latest date any deck's data actually covers (see
+// loadDataByDeckAsync() in viewBuilder.js) -- the daily refresh script only ever needs to update
+// the Drive JSON files; this page always reflects whatever day that data was last refreshed to,
+// with no code redeploy required.
+const CURRENT_CUTOFF = null;
 
 let driveAccessToken = null;
 
@@ -3830,16 +3832,22 @@ function setLoginBusy(busy){
 }
 
 /** Finds a file by exact name inside DRIVE_EXPORT_FOLDER_ID and returns its parsed JSON content,
- * authenticated with the logged-in user's own OAuth token (drive.readonly scope). */
+ * authenticated with the logged-in user's own OAuth token (drive.readonly scope).
+ * supportsAllDrives/includeItemsFromAllDrives/corpora=allDrives are REQUIRED here -- this
+ * project's export\ folder lives inside a Shared Drive ("Unidad compartida"), and Drive API v3
+ * silently excludes Shared Drive content from files.list/files.get without these flags (returns
+ * an empty result, not an error) -- confirmed live: the very first end-to-end login test failed
+ * with "not found" for a file that demonstrably exists and is shared correctly, tracing straight
+ * to this Shared-Drive-vs-My-Drive default. */
 async function fetchDriveJsonFile(fileName){
   const q = encodeURIComponent(`'${DRIVE_EXPORT_FOLDER_ID}' in parents and name='${fileName}' and trashed=false`);
-  const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,
+  const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`,
     { headers: { Authorization: `Bearer ${driveAccessToken}` } });
   if(!listResp.ok) throw new Error(`Drive file search failed for ${fileName}: HTTP ${listResp.status}`);
   const listJson = await listResp.json();
   if(!listJson.files || !listJson.files.length) throw new Error(`${fileName} not found in the shared Drive folder`);
   const fileId = listJson.files[0].id;
-  const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+  const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
     { headers: { Authorization: `Bearer ${driveAccessToken}` } });
   if(!contentResp.ok) throw new Error(`Drive file download failed for ${fileName}: HTTP ${contentResp.status}`);
   return contentResp.json();
