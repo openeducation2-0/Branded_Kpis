@@ -662,12 +662,10 @@ function loadDataByDeckSync(dataDir, cutoffDate) {
  * with no code redeploy needed. Pass an explicit date only to pin to a specific past cutoff (e.g.
  * the month selector rebuilding for an already-closed month).
  */
-async function loadDataByDeckAsync(fetchOneFn, cutoffDate, onProgress){
+async function loadDataByDeckAsync(fetchOneFn, cutoffDate){
   const deckIds = ['OE-LATAM', 'OE-BR', 'JR-LATAM', 'JR-BR'];
   const rawByDeck = {};
-  for (let i = 0; i < deckIds.length; i++) {
-    const deckId = deckIds[i];
-    if (onProgress) onProgress(deckId, i, deckIds.length);
+  for (const deckId of deckIds) {
     rawByDeck[deckId] = await fetchOneFn(deckId);
   }
   _rawByDeckCache = rawByDeck;
