@@ -449,7 +449,7 @@ body.login-mode #zoomGroup{display:none;}
    .slide-body, so header/footer position and the slide's own side/top margins never move. */
 .slide-body{flex:1;display:flex;flex-direction:column;min-height:0;zoom:var(--slide-zoom,1);}
 .slide h2.title{font-size:var(--text-3xl);color:var(--brand-accent);font-weight:700;letter-spacing:-.01em;}
-/* Lámina A's title is uniquely long ("...YTD Monthly Brandformance Pacing vs reforecast -
+/* Lámina A's title is uniquely long ("...YTD Monthly Branded KPIs Pacing vs reforecast -
    Branded vs other channels") and reliably wraps to 2 lines at the shared --text-3xl size,
    eating into the same vertical budget the channel-table needs — scoped down a notch here only,
    every other slide's shorter title stays at the shared size. */
@@ -466,7 +466,7 @@ body.login-mode #zoomGroup{display:none;}
 .raw-source-link:hover{color:var(--brand-accent);}
 
 
-/* ---- Lamina A: Brandformance vs Budget ---- */
+/* ---- Lamina A: Branded KPIs vs Budget ---- */
 .icon-mono{display:inline-flex;flex-shrink:0;align-items:center;justify-content:center;}
 .icon-mono svg{display:block;width:20px;height:20px;}
 
@@ -1092,7 +1092,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 <div id="loginScreen">
   <div class="glass-card">
     <div class="brandmark"><img class="logo-white" src="img/openeducation.svg" alt="Open English"></div>
-    <h1 data-es="Branformance" data-en="Branformance">Branformance</h1>
+    <h1 data-es="Branded KPIs" data-en="Branded KPIs">Branded KPIs</h1>
     <p class="sub" id="loginSub" data-es="Inicia sesión con tu cuenta de Open English para continuar" data-en="Sign in with your Open English account to continue">Inicia sesión con tu cuenta de Open English para continuar</p>
     <button id="googleLoginBtn" class="google-btn">
       <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.68-3.87 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.41 5.41 0 0 1 3.66 9c0-.59.1-1.17.29-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
@@ -1110,7 +1110,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 <div id="home">
   <div class="glass-card">
     <div class="brandmark"><img class="logo-white" src="img/openeducation.svg" alt="Open English"></div>
-    <h1 data-es="Branformance" data-en="Branformance">Branformance</h1>
+    <h1 data-es="Branded KPIs" data-en="Branded KPIs">Branded KPIs</h1>
     <p class="sub" data-es="Elige un reporte para entrar" data-en="Choose a report to open">Elige un reporte para entrar</p>
     <div class="deck-grid">
       <button class="deck-tile" data-deck="OE-LATAM" style="--tile-accent:#0066FF">
@@ -1234,7 +1234,7 @@ function flagIcon(country){ return `<span class="flag-ico">${FLAG_SVG[country]}<
 let LANG = 'es';
 /* Report title is a fixed naming convention (not translated — it was always in
    English regardless of the ES/EN toggle in the legacy static decks), only the
-   month AND the brand/region change: "<Month> <Brand> <Region> YTD Monthly Brandformance KPIs". */
+   month AND the brand/region change: "<Month> <Brand> <Region> YTD Monthly Branded KPIs". */
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1981,7 +1981,7 @@ function wireModalTabs(dlg, key, label, iconName, accent, initialTab){
 }
 
 /* ---------------- PERSISTENCE (theme + language survive a refresh) ---------------- */
-const LS_THEME = 'branformance_theme', LS_LANG = 'branformance_lang';
+const LS_THEME = 'brandedkpis_theme', LS_LANG = 'brandedkpis_lang';
 let DECK_ID = 'OE-LATAM'; // brand+region key for the CURRENTLY OPEN deck — set by enterDeck()
 
 /* ---------------- LÁMINA A VIEW SETTINGS (row + column visibility) ----------------
@@ -1990,7 +1990,7 @@ let DECK_ID = 'OE-LATAM'; // brand+region key for the CURRENTLY OPEN deck — se
    default state where those two are off and the combined "Paid Social + Organic" row is on),
    and which of the 8 metric COLUMNS show, independently, in both the table and the hero.
    Persisted so a reviewer's chosen view survives a refresh, same pattern as theme/lang. */
-const LS_LAMINA_A_VIEW = 'branformance_laminaA_view_v2';
+const LS_LAMINA_A_VIEW = 'brandedkpis_laminaA_view_v2';
 /* Default view set 2026-08-14 per user's own screenshot of this lámina (explicit ask, same
    treatment as YOY's group-menu screenshot) — supersedes the old month-completeness-gated
    default (Spend/NewCash/Impact used to stay hidden until asOfDay===daysInMonth, to avoid an
@@ -2017,7 +2017,7 @@ function loadLaminaAView(){
 }
 function saveLaminaAView(){ localStorage.setItem(LS_LAMINA_A_VIEW, JSON.stringify(laminaAView)); }
 /* Own state, deliberately not shared with dailyValueVis/yoyValueVis — same reasoning as those. */
-const LS_LAMINA_A_VALUE_VIS = 'branformance_laminaA_valueVis';
+const LS_LAMINA_A_VALUE_VIS = 'brandedkpis_laminaA_valueVis';
 let laminaAValueVis = {hideActual:false, hideBudget:false};
 (function loadLaminaAValueVis(){
   try{
@@ -2033,7 +2033,7 @@ function saveLaminaAValueVis(){ localStorage.setItem(LS_LAMINA_A_VALUE_VIS, JSON
    build_data_all.py's add_daily_tracker_by_country) so, unlike Lámina A, there's no
    month-completeness reasoning behind which start visible; the set below is a fixed default per
    the user's own screenshot of this lámina (explicit ask, 2026-08-14). */
-const LS_DAILY_TRACKER_VIEW = 'branformance_dailyTracker_view_v2';
+const LS_DAILY_TRACKER_VIEW = 'brandedkpis_dailyTracker_view_v2';
 let dailyTrackerCols = {Spend:true, SpendShare:false, Leads:true, LeadsShare:false, Sales:true, SalesShare:false, CPL:true, Conversion:true, CMPS:false, AvgPrice:false, MarginPct:true, NewCash:true, Impact:false, LtvShort:false, FullUnitCmShort:false, FullCmPctShort:true, NewCashSemaphore:true};
 (function loadDailyTrackerView(){
   try{
@@ -2046,7 +2046,7 @@ function saveDailyTrackerView(){ localStorage.setItem(LS_DAILY_TRACKER_VIEW, JSO
    shown, hide the Actual and/or Budget line so only the difference remains," see the matching
    .hide-actual-value/.hide-budget-value CSS. Own state/localStorage key, same reasoning as
    yoyValueVis below: toggling this for Daily Tracker must never silently change YoY too. */
-const LS_DAILY_VALUE_VIS = 'branformance_dailyTracker_valueVis';
+const LS_DAILY_VALUE_VIS = 'brandedkpis_dailyTracker_valueVis';
 let dailyValueVis = {hideActual:false, hideBudget:false};
 (function loadDailyValueVis(){
   try{
@@ -2061,7 +2061,7 @@ function saveDailyValueVis(){ localStorage.setItem(LS_DAILY_VALUE_VIS, JSON.stri
    for the same period (DATA.yoyByCountry) instead of a budget file. dateMode picks which of the
    two pre-computed 2025 windows to compare against — see add_yoy_by_country() in
    build_data_all.py for how "exact"/"shifted" are derived. */
-const LS_YOY_VIEW = 'branformance_yoy_view_v2';
+const LS_YOY_VIEW = 'brandedkpis_yoy_view_v2';
 let yoyView = {
   // Default view set 2026-08-14 per user's own screenshot of the group menu — see COLUMNS
   // checkbox state that request specified; every column not listed there starts hidden.
@@ -2093,7 +2093,7 @@ function saveYoyView(){ localStorage.setItem(LS_YOY_VIEW, JSON.stringify(yoyView
    null-guard already does this safely, see its own comment) rather than showing stale or wrong
    numbers. Also only wired for yoyMktOrgFilter==='total' (Junior's own MarketingOrg split has no
    matching 5-month daily dataset) — the panel is hidden while a non-total org filter is active. */
-const LS_YOY_CUSTOM_RANGE = 'branformance_yoy_customrange_v2';
+const LS_YOY_CUSTOM_RANGE = 'brandedkpis_yoy_customrange_v2';
 let yoyCustomRange = {
   enabled: true, // default-on 2026-08-14, explicit ask
   actualStart: null, actualEnd: null,     // null = fall back to the deck's own MTD default
@@ -2339,7 +2339,7 @@ function wireYoyCustomRangePanel(menu){
   if(weekdaySel) wireWeekdaySelector(weekdaySel, ()=>{ saveYoyCustomRange(); refreshSlideYoy(); });
 }
 /* Own state, deliberately not shared with dailyValueVis — see that declaration's comment. */
-const LS_YOY_VALUE_VIS = 'branformance_yoy_valueVis_v2';
+const LS_YOY_VALUE_VIS = 'brandedkpis_yoy_valueVis_v2';
 let yoyValueVis = {hideActual:false, hideBudget:true};
 (function loadYoyValueVis(){
   try{
@@ -2354,7 +2354,7 @@ function saveYoyValueVis(){ localStorage.setItem(LS_YOY_VALUE_VIS, JSON.stringif
    Keyed by deck+slide (not just slide type) since e.g. OE-LATAM's Daily Tracker and Brazil's
    Daily Tracker are structurally very different content densities and shouldn't share a level.
    Cover is intentionally excluded — it's a brand splash, never data-dense enough to need this. */
-const LS_SLIDE_ZOOM = 'branformance_slide_zoom';
+const LS_SLIDE_ZOOM = 'brandedkpis_slide_zoom';
 const ZOOM_MIN = 0.8, ZOOM_MAX = 1.5, ZOOM_STEP = 0.1;
 let slideZoom = {};
 (function loadSlideZoom(){
@@ -3915,15 +3915,15 @@ function wireCardClicks(){
    onLoginSuccess() below, once Drive fetch + buildDeckData() have actually finished. */
 function finishBootstrap(){
   loadLaminaAView();
-  // Home title: append Month+Year to "Branformance" — month/year is shared across all 4 decks,
+  // Home title: append Month+Year to "Branded KPIs" — month/year is shared across all 4 decks,
   // so any one deck's meta is a valid source. Written into data-es/data-en (not textContent
   // directly) so a later language toggle (which re-reads dataset via syncStaticLang()) still
-  // shows the right computed string instead of reverting to the old static "Branformance".
+  // shows the right computed string instead of reverting to the old static "Branded KPIs".
   const anyMeta = Object.values(DATA_BY_DECK)[0].meta;
   const [homeY, homeM] = anyMeta.month.split('-').map(Number);
   const homeH1 = document.querySelector('#home h1');
-  homeH1.dataset.es = `Branformance ${MONTHS_ES[homeM-1]} ${homeY}`;
-  homeH1.dataset.en = `Branformance ${MONTHS_EN[homeM-1]} ${homeY}`;
+  homeH1.dataset.es = `Branded KPIs ${MONTHS_ES[homeM-1]} ${homeY}`;
+  homeH1.dataset.en = `Branded KPIs ${MONTHS_EN[homeM-1]} ${homeY}`;
 
   // Last-updated note — from the data itself (stamped by 03_export_deck_json.py at export time),
   // not a hardcoded build-time literal (see GENERATED_AT's old declaration comment for why that
