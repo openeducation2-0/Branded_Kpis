@@ -164,30 +164,39 @@ button{font-family:var(--font-titles);cursor:pointer;}
 #home .brandmark img{height:22px;}
 #home h1{color:#fff;font-family:var(--font-display);font-weight:800;font-size:clamp(2.4rem,5.5vw,3.6rem);letter-spacing:-.01em;}
 #home .sub{color:#dbe9ff;font-size:var(--text-lg);}
-.picker{display:flex;gap:var(--space-10);flex-wrap:wrap;justify-content:center;max-width:920px;}
-.picker-col{display:flex;flex-direction:column;gap:var(--space-3);}
-.picker-col h3{color:#fff;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:.1em;opacity:.8;margin-bottom:var(--space-1);}
-.tile{
-  width:220px;padding:var(--space-4) var(--space-6);border-radius:var(--radius-lg);
-  background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); color:#fff;
-  font-size:var(--text-base); font-weight:var(--weight-semibold); text-align:center;
-  display:flex;flex-direction:column;align-items:center;
-  transition:.15s; backdrop-filter:blur(4px);
+/* Deck picker — one tile per deck (explicit ask, 2026-08-14: "no hay necesidad de seleccionar la
+   marca y la región por aparte... que sea un solo botón"), replacing the old 2-group/4-tile
+   picker + separate "Entrar al reporte" confirm button. A click goes straight into that deck (see
+   the .deck-tile click handler) — no intermediate active/inactive state to manage, so there's
+   nothing left for a confirm step to confirm. --tile-accent is set inline per tile (OE blue vs
+   Junior amber, the same 2 brand colors used everywhere else) since all 4 are visible at once here
+   — the single shared --brand-accent variable (which reflects ONE "current" brand) doesn't apply
+   to a grid showing both brands simultaneously. */
+.deck-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-5);max-width:420px;}
+.deck-tile{
+  position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;gap:var(--space-2);
+  width:180px;padding:var(--space-6) var(--space-4);border-radius:var(--radius-lg);
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);color:#fff;
+  font-family:var(--font-titles);transition:transform .18s, border-color .18s, box-shadow .18s;
+  backdrop-filter:blur(4px);
 }
-.tile.active{background:#fff;color:var(--brand-accent);box-shadow:var(--shadow-md);}
-.tile.disabled{opacity:.35;cursor:not-allowed;}
-.tile:not(.disabled):hover{background:rgba(255,255,255,.22);transform:translateY(-2px);}
-.tile.active:hover{background:#fff;transform:translateY(-2px);}
-#enterBtn{
-  margin-top:var(--space-4); background:var(--brand-cta-gradient);color:#fff;border:none;
-  padding:var(--space-4) var(--space-10);border-radius:var(--radius-full);font-size:var(--text-lg);
-  font-weight:var(--weight-bold);box-shadow:0 10px 26px var(--brand-cta-shadow);letter-spacing:.02em;
-  transition:transform .15s, box-shadow .15s;
+.deck-tile::before{
+  content:"";position:absolute;inset:0;opacity:0;transition:opacity .18s;pointer-events:none;
+  background:radial-gradient(120px 100px at 50% -10%, var(--tile-accent), transparent 70%);
 }
-#enterBtn:hover{transform:translateY(-2px);}
-#enterBtn:disabled{opacity:.4;cursor:not-allowed;}
-#updateNote{margin-top:var(--space-6);color:#dbe9ff;opacity:.75;font-size:var(--text-sm);letter-spacing:.02em;}
-.not-ready{font-size:var(--text-xs);color:#dceaff;opacity:.8;}
+.deck-tile:hover, .deck-tile:focus-visible{
+  transform:translateY(-4px);border-color:var(--tile-accent);
+  box-shadow:0 14px 30px rgba(0,0,0,.25);
+}
+.deck-tile:hover::before{opacity:.4;}
+.deck-tile-icon{
+  position:relative;z-index:1;width:38px;height:38px;border-radius:50%;flex:none;
+  display:flex;align-items:center;justify-content:center;background:var(--tile-accent);
+  box-shadow:0 4px 12px rgba(0,0,0,.25);
+}
+.deck-tile-brand{position:relative;z-index:1;font-weight:700;font-size:var(--text-base);}
+.deck-tile-region{position:relative;z-index:1;display:flex;align-items:center;gap:6px;font-size:var(--text-sm);color:#dbe9ff;opacity:.9;}
+#updateNote{margin-top:var(--space-2);color:#dbe9ff;opacity:.75;font-size:var(--text-sm);letter-spacing:.02em;}
 
 /* ================= LOGIN ================= */
 /* Same fixed full-screen brand-gradient treatment as #home (see above) -- login is the very
@@ -213,7 +222,6 @@ button{font-family:var(--font-titles);cursor:pointer;}
 .google-btn:hover{transform:translateY(-2px);}
 .google-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
 .login-error{color:#ffd1d1;background:rgba(220,38,38,.25);border:1px solid rgba(255,255,255,.25);padding:10px 18px;border-radius:var(--radius-md);font-size:var(--text-sm);max-width:480px;}
-.login-loading{color:#dbe9ff;font-size:var(--text-sm);opacity:.85;}
 /* Only one of loginScreen/home/deck is ever meaningful at a time -- gate on body class so a
    half-finished login can't show stale/empty Home content underneath it. */
 body:not(.login-mode) #loginScreen{display:none;}
@@ -244,7 +252,6 @@ body.login-mode #zoomGroup{display:none;}
   from{opacity:0;transform:translateY(14px);}
   to{opacity:1;transform:translateY(0);}
 }
-@keyframes spin{to{transform:rotate(360deg);}}
 #home::after, #loginScreen::after{
   content:"";position:absolute;inset:-10%;pointer-events:none;z-index:0;
   background:radial-gradient(480px 480px at 85% 15%, rgba(255,255,255,.14), transparent 60%);
@@ -270,14 +277,30 @@ body.login-mode #zoomGroup{display:none;}
   #home::after, #loginScreen::after{animation:none;}
   .glass-card > *{animation:none;}
 }
-.tile-icon{display:block;margin:0 auto var(--space-2);opacity:.85;transition:opacity .15s;}
-.tile.active .tile-icon{opacity:1;}
-.tile:not(.disabled):hover .tile-icon{opacity:1;}
-.tile{position:relative;overflow:hidden;}
-.tile:not(.disabled):hover{box-shadow:0 8px 22px rgba(0,0,0,.18);}
-.login-loading{display:flex;align-items:center;gap:10px;justify-content:center;}
-.login-spinner{width:15px;height:15px;border-radius:50%;flex:none;
-  border:2px solid rgba(219,233,255,.35);border-top-color:#dbe9ff;animation:spin .7s linear infinite;}
+/* Loading indicator — explicit ask 2026-08-14: "no decir exactamente qué está cargando, sino que
+   algo está cargando" (a spinner + live per-deck text read as ugly/literal) and "una animación...
+   tipo motion graphic... que va de inicio a fin y vuelve inicio a fin" -- a purely decorative,
+   indeterminate bar whose fill sweeps back and forth continuously (animation-direction:alternate
+   is the literal "va y vuelve"), brand-colored, with only a generic "Cargando…" label, no per-deck
+   detail. Deliberately NOT wired to real fetch progress -- the ask was explicitly for continuous
+   motion, not a determinate 0-100% fill that would stop partway through and look broken while the
+   4th (largest) deck is still loading. */
+.login-loading{display:flex;flex-direction:column;align-items:center;gap:var(--space-3);}
+.login-loading span{color:#dbe9ff;font-size:var(--text-sm);opacity:.85;letter-spacing:.02em;}
+.load-bar{width:180px;height:5px;border-radius:var(--radius-full);background:rgba(255,255,255,.16);overflow:hidden;position:relative;}
+.load-bar-fill{
+  position:absolute;top:0;bottom:0;width:42%;border-radius:var(--radius-full);
+  background:linear-gradient(90deg, rgba(255,255,255,0), #fff 55%, var(--color-oe-aqua));
+  box-shadow:0 0 10px rgba(255,255,255,.6);
+  animation:loadSweep 1.35s cubic-bezier(.65,0,.35,1) infinite alternate;
+}
+@keyframes loadSweep{
+  0%{left:-42%;}
+  100%{left:100%;}
+}
+@media (prefers-reduced-motion: reduce){
+  .load-bar-fill{animation-duration:2.5s;}
+}
 
 
 /* ================= DECK ================= */
@@ -1075,7 +1098,10 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
       <span data-es="Iniciar sesión con Google" data-en="Sign in with Google">Iniciar sesión con Google</span>
     </button>
     <p id="loginError" class="login-error" style="display:none;"></p>
-    <p id="loginLoading" class="login-loading" style="display:none;"><span class="login-spinner"></span><span id="loginLoadingText" data-es="Cargando datos…" data-en="Loading data…">Cargando datos…</span></p>
+    <div id="loginLoading" class="login-loading" style="display:none;">
+      <div class="load-bar"><div class="load-bar-fill"></div></div>
+      <span data-es="Cargando…" data-en="Loading…">Cargando…</span>
+    </div>
   </div>
 </div>
 
@@ -1084,20 +1110,29 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
   <div class="glass-card">
     <div class="brandmark"><img class="logo-white" src="img/openeducation.svg" alt="Open English"></div>
     <h1 data-es="Branformance" data-en="Branformance">Branformance</h1>
-    <p class="sub" data-es="Elige marca y región para entrar al reporte" data-en="Choose brand and region to open the report">Elige marca y región para entrar al reporte</p>
-    <div class="picker">
-      <div class="picker-col">
-        <h3 data-es="Marca" data-en="Brand">Marca</h3>
-        <button class="tile active" data-group="brand" data-value="OE"><svg class="tile-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5"/></svg>OE Adult</button>
-        <button class="tile" data-group="brand" data-value="JR"><svg class="tile-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.9 6.1 6.6.7-4.9 4.6 1.3 6.6L12 17.6l-5.9 3.1 1.3-6.6-4.9-4.6 6.6-.7L12 2.5Z"/></svg>OE Junior</button>
-      </div>
-      <div class="picker-col">
-        <h3 data-es="Región" data-en="Region">Región</h3>
-        <button class="tile active" data-group="region" data-value="LATAM"><svg class="tile-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-6-4-9s1.5-6.4 4-9Z"/></svg>LatAm</button>
-        <button class="tile" data-group="region" data-value="BR"><svg class="tile-icon" width="22" height="22" viewBox="0 0 22 16"><rect width="22" height="16" rx="2" fill="#009B3A"/><polygon points="11,2 20,8 11,14 2,8" fill="#FEDD00"/><circle cx="11" cy="8" r="4" fill="#002776"/></svg>Brazil</button>
-      </div>
+    <p class="sub" data-es="Elige un reporte para entrar" data-en="Choose a report to open">Elige un reporte para entrar</p>
+    <div class="deck-grid">
+      <button class="deck-tile" data-deck="OE-LATAM" style="--tile-accent:#0066FF">
+        <span class="deck-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5"/></svg></span>
+        <span class="deck-tile-brand">OE Adult</span>
+        <span class="deck-tile-region"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-6-4-9s1.5-6.4 4-9Z"/></svg>LatAm</span>
+      </button>
+      <button class="deck-tile" data-deck="OE-BR" style="--tile-accent:#0066FF">
+        <span class="deck-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="M6 10.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-5.5"/></svg></span>
+        <span class="deck-tile-brand">OE Adult</span>
+        <span class="deck-tile-region"><svg width="16" height="16" viewBox="0 0 22 16"><rect width="22" height="16" rx="2" fill="#009B3A"/><polygon points="11,2 20,8 11,14 2,8" fill="#FEDD00"/><circle cx="11" cy="8" r="4" fill="#002776"/></svg>Brazil</span>
+      </button>
+      <button class="deck-tile" data-deck="JR-LATAM" style="--tile-accent:#D9720A">
+        <span class="deck-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.9 6.1 6.6.7-4.9 4.6 1.3 6.6L12 17.6l-5.9 3.1 1.3-6.6-4.9-4.6 6.6-.7L12 2.5Z"/></svg></span>
+        <span class="deck-tile-brand">OE Junior</span>
+        <span class="deck-tile-region"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 4 6 4 9s-1.5 6.4-4 9c-2.5-2.6-4-6-4-9s1.5-6.4 4-9Z"/></svg>LatAm</span>
+      </button>
+      <button class="deck-tile" data-deck="JR-BR" style="--tile-accent:#D9720A">
+        <span class="deck-tile-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5l2.9 6.1 6.6.7-4.9 4.6 1.3 6.6L12 17.6l-5.9 3.1 1.3-6.6-4.9-4.6 6.6-.7L12 2.5Z"/></svg></span>
+        <span class="deck-tile-brand">OE Junior</span>
+        <span class="deck-tile-region"><svg width="16" height="16" viewBox="0 0 22 16"><rect width="22" height="16" rx="2" fill="#009B3A"/><polygon points="11,2 20,8 11,14 2,8" fill="#FEDD00"/><circle cx="11" cy="8" r="4" fill="#002776"/></svg>Brazil</span>
+      </button>
     </div>
-    <button id="enterBtn" data-es="Entrar al reporte →" data-en="Open report →">Entrar al reporte →</button>
     <p id="updateNote"></p>
   </div>
 </div>
@@ -1149,7 +1184,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
   </dialog>
 </template>
 
-<script src="viewBuilder.js?v=5"></script>
+<script src="viewBuilder.js?v=6"></script>
 <script>
 /* DATA_BY_DECK holds all 4 Brand×Region combinations; DATA is a `let` pointing at whichever
    one is currently active (see enterDeck()) — every slide builder/helper reads the module-level
@@ -2650,22 +2685,13 @@ function setBrand(brandKey){
   if(brandKey==='junior') document.documentElement.dataset.brand = 'junior';
   else delete document.documentElement.dataset.brand;
 }
-document.querySelectorAll('.tile').forEach(t=>{
-  t.addEventListener('click', ()=>{
-    if(t.disabled) return;
-    document.querySelectorAll(`.tile[data-group="${t.dataset.group}"]`).forEach(x=>x.classList.remove('active'));
-    t.classList.add('active');
-    if(t.dataset.group==='brand') setBrand(t.dataset.value==='JR' ? 'junior' : 'oe');
-  });
+/* One click, straight into that deck (explicit ask, 2026-08-14 — see .deck-tile's own CSS
+   comment for why there's no more separate active/inactive selection state to manage here).
+   setBrand() theming is handled by enterDeck() itself (reads currentDeck().brandKey), so this
+   handler doesn't need to know or care which brand a tile represents. */
+document.querySelectorAll('.deck-tile').forEach(t=>{
+  t.addEventListener('click', ()=> enterDeck(t.dataset.deck, 0));
 });
-/* Maps the Home picker's active Brand/Region tiles to a DECKS key. Brand tile values are
-   OE/JR, region tile values are LATAM/BR — matches the key halves in DECKS (OE-LATAM, OE-BR,
-   JR-LATAM, JR-BR), so this is just a string join, not a lookup table. */
-function pickDeckId(){
-  const brand = document.querySelector('.tile[data-group="brand"].active')?.dataset.value || 'OE';
-  const region = document.querySelector('.tile[data-group="region"].active')?.dataset.value || 'LATAM';
-  return `${brand}-${region}`;
-}
 function enterDeck(deckId, slideIdx){
   lastAutoFitId = null; // same slide id can mean a different deck's content now — force a fresh fit
   DECK_ID = deckId;
@@ -2711,7 +2737,6 @@ function goHome(){
   document.getElementById('groupMenuDaily')?.classList.remove('hover-visible');
   document.getElementById('groupMenuYoy')?.classList.remove('hover-visible');
 }
-document.getElementById('enterBtn').addEventListener('click', ()=> enterDeck(pickDeckId(), 0));
 document.getElementById('homeToggle').addEventListener('click', goHome);
 document.getElementById('tocHome').addEventListener('click', goHome);
 
@@ -3987,13 +4012,10 @@ async function onLoginSuccess(){
       setLoginBusy(false);
       return;
     }
-    const loadingText = document.getElementById('loginLoadingText');
-    const progressLabel = { 'OE-LATAM': 'OE Adult · LatAm', 'OE-BR': 'OE Adult · Brazil', 'JR-LATAM': 'OE Junior · LatAm', 'JR-BR': 'OE Junior · Brazil' };
-    DATA_BY_DECK = await loadDataByDeckAsync(
-      deckId => fetchDriveJsonFile(`${deckId}.json`),
-      CURRENT_CUTOFF,
-      (deckId, i, total) => { loadingText.textContent = L(`Cargando ${progressLabel[deckId]}… (${i+1}/${total})`, `Loading ${progressLabel[deckId]}… (${i+1}/${total})`); }
-    );
+    // Deliberately no per-deck progress text (explicit ask, 2026-08-14: "no decir exactamente qué
+    // está cargando, sino que algo está cargando") -- the .load-bar animation below is purely
+    // decorative/indeterminate, doesn't track real fetch progress, and needs no JS driving it.
+    DATA_BY_DECK = await loadDataByDeckAsync(deckId => fetchDriveJsonFile(`${deckId}.json`), CURRENT_CUTOFF);
     DATA = DATA_BY_DECK['OE-LATAM'];
     finishBootstrap();
   }catch(err){
