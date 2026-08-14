@@ -572,13 +572,14 @@ function buildYoyByCountryMktOrg(dailyRows, mktorgKpiRows, cutoffDate, isBrazilD
   return result;
 }
 
-function buildMeta(cutoffDate, daysInMonth) {
+function buildMeta(cutoffDate, daysInMonth, generatedAt) {
   const [y, m, d] = cutoffDate.split('-').map(Number);
   return {
     month: `${y}-${String(m).padStart(2, '0')}`,
     asOfDay: d,
     daysInMonth,
     pacing: Math.round((d / daysInMonth) * 10000) / 10000,
+    generatedAt: generatedAt || null,
   };
 }
 
@@ -597,7 +598,7 @@ function buildDeckData(raw, deckId, cutoffDate) {
   const daysInMonth = new Date(year, month, 0).getDate();
 
   const data = {
-    meta: buildMeta(cutoffDate, daysInMonth),
+    meta: buildMeta(cutoffDate, daysInMonth, raw.generatedAt),
     actuals: buildActuals(raw.dailyRows, raw.channelKpiRows, monthStart, cutoffDate, isBrazilDeck),
     budget: buildBudget(raw.budgetRows, monthStart),
     trends: buildTrends(raw.dailyRows, year, month, isBrazilDeck),
