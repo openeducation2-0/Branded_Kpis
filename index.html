@@ -425,6 +425,9 @@ body.login-mode #zoomGroup{display:none;}
 .slide-footer.on-brand .footer-toggle{background:rgba(255,255,255,.14);}
 .slide-footer.on-brand .footer-toggle button{color:rgba(255,255,255,.65);}
 .slide-footer.on-brand .footer-toggle button.on{background:rgba(255,255,255,.9);color:var(--brand-accent);}
+.yoymktorg-toggle-wrap{display:flex;align-items:center;gap:8px;}
+.yoymktorg-label{font-size:10px;font-weight:600;color:var(--text-secondary);white-space:nowrap;}
+.slide-footer.on-brand .yoymktorg-label{color:rgba(255,255,255,.65);}
 /* Semaphore legend — small/subtle by explicit ask, same visual weight class as .footer-toggle
    (never larger). Dots reuse .nc-semaphore's exact colors at a much smaller flat size (no
    gradient — imperceptible at 7px, a flat fill stays crisp instead of muddy at this size). */
@@ -1075,6 +1078,12 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mtc-stat.variance{border:1px solid var(--border-soft);}
 .mtc-stat.variance.pos{background:color-mix(in srgb, var(--pos) 12%, transparent);border-color:color-mix(in srgb, var(--pos) 30%, transparent);}
 .mtc-stat.variance.neg{background:color-mix(in srgb, var(--neg) 12%, transparent);border-color:color-mix(in srgb, var(--neg) 30%, transparent);}
+.mktorg-modal-body{display:flex;flex-direction:column;gap:var(--space-3);justify-content:center;height:100%;max-width:420px;margin:0 auto;width:100%;}
+.mktorg-row .label{text-transform:none;letter-spacing:0;font-weight:600;}
+.mktorg-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.mktorg-pct{color:var(--text-secondary);font-size:var(--text-sm);}
+.bh-kpi.mktorg-clickable{cursor:pointer;}
+.bh-kpi.mktorg-clickable:hover{background:var(--bg-section);border-radius:var(--radius-md);}
 .mtc-stat.variance .value{display:flex;align-items:center;gap:6px;font-size:var(--text-2xl);font-weight:700;}
 .mtc-stat.variance.pos .value{color:var(--pos);}
 .mtc-stat.variance.neg .value{color:var(--neg);}
@@ -1186,7 +1195,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
   </dialog>
 </template>
 
-<script src="viewBuilder.js?v=6"></script>
+<script src="viewBuilder.js?v=7"></script>
 <script>
 /* DATA_BY_DECK holds all 4 Brand×Region combinations; DATA is a `let` pointing at whichever
    one is currently active (see enterDeck()) — every slide builder/helper reads the module-level
@@ -1326,8 +1335,8 @@ function mcPctSignClass(v){ return v==null ? '' : (v>=0 ? 'pos' : 'neg'); }
    comparable at any point in the month, unlike the $ volume New Cash Core used to require
    (paceAdjustedTarget() is gone — it had no other caller). Gray remains "no comparison value
    available," not a severity tier. */
-function mnccTemperatureCell(actualPct, comparisonPct){
-  if(comparisonPct==null || actualPct==null){
+function mnccTemperatureCell(actualPct, comparisonPct, forceGray){
+  if(forceGray || comparisonPct==null || actualPct==null){
     return `<div class="metric-cell muted"><span class="nc-semaphore gray"></span></div>`;
   }
   const diffPP = (actualPct-comparisonPct)*100;
@@ -1351,8 +1360,8 @@ function netImpactTemperaturePct(a,b){
   const netA = a.NewCash-a.Spend, netB = b.NewCash-b.Spend;
   return netB ? (netA/netB - 1) : null;
 }
-function netImpactTemperatureCell(pct){
-  if(pct==null || isNaN(pct)){
+function netImpactTemperatureCell(pct, forceGray){
+  if(forceGray || pct==null || isNaN(pct)){
     return `<div class="metric-cell muted"><span class="nc-semaphore gray"></span></div>`;
   }
   const pctRounded = Math.round(pct*1000)/10;
@@ -1586,25 +1595,42 @@ function applyMarketingOrgFilter(){
 }
 
 /* YoY's OWN investment-org filter — separate state from marketingOrgFilter above (that one is
-   frozen at 'total' now that Lámina A no longer exposes a toggle for it; this one is YoY-only,
-   3-state, and reads a different data shape entirely). "Solo Inversión Adulto" is deliberately
-   NOT the same as the "overflow" bucket marketingOrgSplit uses elsewhere (that one also folds in
-   NextU/Open Mundo) — the user's own definition here is exactly MarketingOrganization==="OE", so
-   this reads a separate, more precise data slice (DATA.actualsByCountryMktOrg/
-   yoyByCountryMktOrg, Junior decks only) built specifically for this filter. */
-let yoyMktOrgFilter = 'total';
+   frozen at 'total' now that Lámina A no longer exposes a toggle for it; this one is YoY-only
+   and reads a different data shape entirely). "OE Adult"/"OE Junior" are deliberately NOT the
+   same as the "overflow" bucket marketingOrgSplit uses elsewhere (that one also folds in
+   NextU/Open Mundo) — the user's own definition here is exactly MarketingOrganization==="OE" or
+   ==="Open English Junior", so this reads a separate, more precise data slice
+   (DATA.actualsByCountryMktOrg/yoyByCountryMktOrg, Junior decks only) built specifically for
+   this filter.
+   Redesigned 2026-08-14 (explicit ask) from a 3-way radio ('total'|'juniorOwn'|'adultOnly') into
+   a 2-way MULTI-select {oe,junior} — "Total Junior" is no longer its own button, it's just what
+   you get when both are on; at least one must always stay on (see wireYoyMktOrgToggle's no-op
+   guard). yoyMktOrgKey() below translates the new shape back to the 3 data-slice keys every
+   existing consumer (DATA.actualsByCountryMktOrg/yoyByCountryMktOrg, both still keyed the old
+   way) already expects, so nothing downstream of it needed to change. */
+let yoyMktOrgFilter = {oe:true, junior:true};
+function yoyMktOrgKey(){
+  if(yoyMktOrgFilter.oe && yoyMktOrgFilter.junior) return 'total';
+  if(yoyMktOrgFilter.junior) return 'juniorOwn';
+  if(yoyMktOrgFilter.oe) return 'adultOnly';
+  return 'total'; // both off can't happen via the UI (see the no-op guard) — safe fallback anyway
+}
+function yoyMktOrgShowsTotal(){ return yoyMktOrgKey()==='total'; }
 function yoyActualsByCountry(){
-  if(yoyMktOrgFilter==='total') return DATA.actuals.branded.byCountry;
-  return DATA.actualsByCountryMktOrg[yoyMktOrgFilter];
+  const key = yoyMktOrgKey();
+  if(key==='total') return DATA.actuals.branded.byCountry;
+  return DATA.actualsByCountryMktOrg[key];
 }
 function yoyActualsTotal(){
-  if(yoyMktOrgFilter==='total') return DATA.actuals.branded.total;
-  const byCountry = DATA.actualsByCountryMktOrg[yoyMktOrgFilter];
+  const key = yoyMktOrgKey();
+  if(key==='total') return DATA.actuals.branded.total;
+  const byCountry = DATA.actualsByCountryMktOrg[key];
   return byCountry.Brazil || sumDailyTrackerFields(Object.values(byCountry), DAILY_TRACKER_FIELDS);
 }
 function yoyComparisonByMode(dateMode){
-  if(yoyMktOrgFilter==='total') return DATA.yoyByCountry[dateMode];
-  return DATA.yoyByCountryMktOrg[yoyMktOrgFilter][dateMode];
+  const key = yoyMktOrgKey();
+  if(key==='total') return DATA.yoyByCountry[dateMode];
+  return DATA.yoyByCountryMktOrg[key][dateMode];
 }
 
 /* "Agregar Brasil" — OE-LATAM only. Folds OE-BR's own numbers into Lamina A's Blended hero +
@@ -2091,14 +2117,16 @@ function saveYoyView(){ localStorage.setItem(LS_YOY_VIEW, JSON.stringify(yoyView
    MediaSpend/MediaCPL/PaidOrganicSpend (Sesion 45, need a separate Type-level query per range)
    are NOT recomputed under a custom range; those 3 cells fall back to "—" (mediaCpl()'s existing
    null-guard already does this safely, see its own comment) rather than showing stale or wrong
-   numbers. Also only wired for yoyMktOrgFilter==='total' (Junior's own MarketingOrg split has no
-   matching 5-month daily dataset) — the panel is hidden while a non-total org filter is active. */
-const LS_YOY_CUSTOM_RANGE = 'brandedkpis_yoy_customrange_v2';
+   numbers. Also only wired for yoyMktOrgShowsTotal() (Junior's own MarketingOrg-split data —
+   DATA.actualsByCountryMktOrg/yoyByCountryMktOrg — is pre-aggregated at MONTH grain, no daily
+   breakdown to aggregate a custom range from) — the panel is hidden unless both orgs are on. */
+const LS_YOY_CUSTOM_RANGE = 'brandedkpis_yoy_customrange_v3';
 let yoyCustomRange = {
   enabled: true, // default-on 2026-08-14, explicit ask
   actualStart: null, actualEnd: null,     // null = fall back to the deck's own MTD default
-  compareMode: 'shifted',                  // 'exact' | 'shifted' | 'custom'
-  compareStart: null, compareEnd: null,    // only read when compareMode==='custom'
+  category: 'YOY',                         // 'YOY' | 'QOQ' | 'MOM' | 'WOW' | 'CUSTOM' — added 2026-08-14
+  compareMode: 'shifted',                  // 'exact' | 'shifted' — ONLY meaningful when category==='YOY'
+  compareStart: null, compareEnd: null,    // only read when category==='CUSTOM'
   weekdays: null,                          // null = every day; else an array of 0-6 (Sun-Sat)
 };
 (function loadYoyCustomRange(){
@@ -2106,12 +2134,30 @@ let yoyCustomRange = {
     const saved = JSON.parse(localStorage.getItem(LS_YOY_CUSTOM_RANGE)||'null');
     if(saved) Object.assign(yoyCustomRange, saved);
   }catch(e){}
+  /* Migrate a pre-category save (LS key bumped v2->v3 specifically so this only ever needs to
+     handle the OLD 3-mode shape once): the 'custom' choice used to live inside compareMode
+     alongside 'shifted'/'exact' — it's now its own top-level category, sibling to the new
+     QOQ/MOM/WOW options (explicit ask: "solo en YOY es que están los botones de mismos días de
+     semana o mismas fechas" — those 2 sub-buttons only make sense once you're already in the YOY
+     category, so 'custom' had to move out to be selectable independently of them). */
+  if(yoyCustomRange.compareMode==='custom'){ yoyCustomRange.category='CUSTOM'; yoyCustomRange.compareMode='shifted'; }
 })();
 function saveYoyCustomRange(){ localStorage.setItem(LS_YOY_CUSTOM_RANGE, JSON.stringify(yoyCustomRange)); }
 function parseISODate(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
 function toISODate(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function addDaysISO(iso, n){ const d = parseISODate(iso); d.setDate(d.getDate()+n); return toISODate(d); }
 function addYearsISO(iso, n){ const [y,m,d] = iso.split('-').map(Number); return `${y+n}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+/* Calendar-safe month shift (QOQ = 3 of these, MOM = 1) — clamps to the target month's last day
+   instead of overflowing (e.g. Mar 31 - 1 month must land on Feb 28/29, never "Mar 3"). */
+function addMonthsISO(iso, n){
+  const [y,m,d] = iso.split('-').map(Number);
+  const targetIdx0 = (m-1) + n;
+  const targetYear = y + Math.floor(targetIdx0/12);
+  const targetMonth0 = ((targetIdx0 % 12)+12)%12;
+  const lastDay = new Date(targetYear, targetMonth0+1, 0).getDate();
+  const day = Math.min(d, lastDay);
+  return `${targetYear}-${String(targetMonth0+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
 function daysInclusive(startISO, endISO){ return Math.round((parseISODate(endISO)-parseISODate(startISO))/86400000)+1; }
 function weekdayCounts(startISO, endISO){
   const counts = [0,0,0,0,0,0,0];
@@ -2147,18 +2193,51 @@ function yoyActiveActualRange(){
   const def = yoyDefaultActualRange();
   return {start: yoyCustomRange.actualStart||def.start, end: yoyCustomRange.actualEnd||def.end};
 }
+/* Which calendar unit the compare side steps back — added 2026-08-14 (explicit ask for
+   QOQ/MOM/WOW alongside the existing year-over-year comparison). QOQ/MOM/WOW shift the WHOLE
+   actual range back by an exact calendar unit (3 months / 1 month / 7 days) — no weekday
+   alignment choice for these (that's explicitly a YOY-only concept, see the compareMode comment
+   below); a plain calendar shift is what "prior quarter/month/week" means in every reporting tool
+   this mirrors. All 3 read from the SAME full-history daily pool YOY already uses
+   (yoyDailyByCountry — see its own builder comment: the export has no per-window truncation,
+   Jan 2025 onward is always present), so there's no separate data-availability concern to handle
+   here the way the original 5-month-window architecture would have required. */
 function yoyActiveCompareRange(){
   const {start,end} = yoyActiveActualRange();
-  if(yoyCustomRange.compareMode==='custom'){
+  const cat = yoyCustomRange.category || 'YOY';
+  if(cat==='CUSTOM'){
     return {start: yoyCustomRange.compareStart||addYearsISO(start,-1), end: yoyCustomRange.compareEnd||addYearsISO(end,-1)};
   }
+  if(cat==='QOQ') return {start: addMonthsISO(start,-3), end: addMonthsISO(end,-3)};
+  if(cat==='MOM') return {start: addMonthsISO(start,-1), end: addMonthsISO(end,-1)};
+  if(cat==='WOW') return {start: addDaysISO(start,-7), end: addDaysISO(end,-7)};
+  // 'YOY' — the only category where "same weekday" vs. "same calendar date" is even ambiguous,
+  // since a plain 1-year shift can land on a different day of the week (leap-year drift).
   if(yoyCustomRange.compareMode==='exact'){
     const priorStart = addYearsISO(start,-1);
     return {start: priorStart, end: addDaysISO(priorStart, daysInclusive(start,end)-1)};
   }
-  return shiftedRangeForWeekday(start,end); // 'shifted', the default
+  return shiftedRangeForWeekday(start,end); // 'shifted', the YOY default
 }
 function yoyWeekdaySet(){ return (yoyCustomRange.weekdays && yoyCustomRange.weekdays.length) ? new Set(yoyCustomRange.weekdays) : null; }
+const WD_ABBR_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], WD_ABBR_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+/* Item 6 (explicit ask): the subtitle must always say which weekdays are actually included, not
+   just imply "the whole range" when a weekday filter has silently narrowed it — "poner si es
+   lunes a domingo (Mon-Sun) o cualquier combinación de días que se haga". All 7 selected (the
+   default) still gets an explicit "Lun-Dom" label rather than being omitted, a contiguous
+   subset collapses to a dash range (Monday-first, matching how a work week reads), anything
+   non-contiguous just lists the days — always something concrete, never a silent assumption. */
+function weekdayRangeLabel(){
+  const days = (yoyCustomRange.weekdays && yoyCustomRange.weekdays.length) ? yoyCustomRange.weekdays.slice().sort((a,b)=>a-b) : [0,1,2,3,4,5,6];
+  if(days.length===7) return {es:'Lun-Dom', en:'Mon-Sun'};
+  const mondayFirst = days.map(d => d===0?7:d).sort((a,b)=>a-b); // Mon=1..Sun=7 for contiguity purposes only
+  const isContiguous = days.length>1 && mondayFirst.every((d,i)=> i===0 || d===mondayFirst[i-1]+1);
+  if(isContiguous){
+    const first = mondayFirst[0]===7?0:mondayFirst[0], last = mondayFirst[mondayFirst.length-1]===7?0:mondayFirst[mondayFirst.length-1];
+    return {es:`${WD_ABBR_ES[first]}-${WD_ABBR_ES[last]}`, en:`${WD_ABBR_EN[first]}-${WD_ABBR_EN[last]}`};
+  }
+  return {es: days.map(d=>WD_ABBR_ES[d]).join(', '), en: days.map(d=>WD_ABBR_EN[d]).join(', ')};
+}
 /* Sums DATA.yoyDailyByCountry rows into the exact same {Spend,Leads,Sales,NewCash,FullCM,
    ProjRevShort,TotalEnrollments} shape yoyByCountry.exact/.shifted already use per country — this
    is what lets every existing consumer (countryRowYoy, yoyCellHtml, heroCellYoy, ltvShort() and
@@ -2195,6 +2274,58 @@ function yoyCustomActualsByCountry(){
 function yoyCustomComparisonByCountry(){
   const {start,end} = yoyActiveCompareRange();
   return aggregateYoyDaily(yoyDailyRowsForDeck('prior'), start, end, yoyWeekdaySet());
+}
+/* Item 7 (explicit ask, Junior decks only): clicking a metric shows how much of it came from
+   OE Adult's own investment vs. Junior's own investment. Always reads the CURRENT/actual period
+   (never the compare side) and always the TRUE unfiltered split — independent of the footer
+   investment-filter buttons (item 5), which the user explicitly said this must not be affected
+   by. Sums by marketing_organization first, THEN divides — never average a per-org ratio, see
+   mktOrgSplitFor's own note on why CPL/Conversion aren't offered here at all. */
+function aggregateMktOrgDaily(rows, startISO, endISO, weekdaySet){
+  const out = {};
+  for(const r of rows){
+    if(r.date<startISO || r.date>endISO) continue;
+    if(weekdaySet && !weekdaySet.has(parseISODate(r.date).getDay())) continue;
+    const b = out[r.marketingOrg] || (out[r.marketingOrg] = {Spend:0,Leads:0,Sales:0,NewCash:0});
+    b.Spend+=r.Spend; b.Leads+=r.Leads; b.Sales+=r.Sales; b.NewCash+=r.NewCash;
+  }
+  return out;
+}
+/* Only Spend/Leads/Sales/NewCash are offered — the only 4 fields with real marketing_organization
+   granularity (see buildYoyDailyByMktOrg's own comment: LtvShort/FullUnitCmShort/FullCmPctShort/
+   CMPS/%MNCC/Impact all need channelKpiRows, which has no marketing_organization dimension at
+   all, by design — showing a number there would mean fabricating a split the data can't support).
+   CPL/Conversion are also left out on purpose even though Spend/Leads/Sales could derive them:
+   they're RATIOS, and "OE Adult's % SHARE of a ratio" isn't a meaningful concept the way "OE
+   Adult's % share of total Leads" is — the user's own ask ("su porcentaje de share sobre 100%")
+   only makes sense for additive quantities. */
+const MKTORG_MODAL_METRICS = new Set(['Spend','Leads','Sales','NewCash']);
+function mktOrgSplitFor(metricKey){
+  const range = yoyActiveActualRange();
+  const byOrg = aggregateMktOrgDaily(DATA.yoyDailyByMktOrg, range.start, range.end, yoyWeekdaySet());
+  const sumField = org => (byOrg[org] && byOrg[org][metricKey]) || 0;
+  const oeV = sumField('OE'), jrV = sumField('Open English Junior');
+  // Real data fact found building this (2026-08-14): marketing_organization isn't ALWAYS exactly
+  // "OE"/"Open English Junior" — a small "NextU" residual exists too (confirmed on JR-LATAM: ~0.06%
+  // of Sales, $0 Spend/Leads). Folded into "Otros" rather than silently dropped from the total, so
+  // OE/Junior/Otros always sum to a true 100% instead of a percentage that quietly ignores a slice
+  // of the real data.
+  let otherV = 0;
+  Object.keys(byOrg).forEach(k=>{ if(k!=='OE' && k!=='Open English Junior') otherV += (byOrg[k][metricKey]||0); });
+  return {oeV, jrV, otherV, total: oeV+jrV+otherV};
+}
+function mktOrgBreakdownModalHtml(metricKey, label){
+  const {oeV, jrV, otherV, total} = mktOrgSplitFor(metricKey);
+  const fmt = (metricKey==='Spend'||metricKey==='NewCash') ? fmtUSD : fmtNum;
+  const pct = v => fmtPct(total ? v/total : 0);
+  const row = (dotColor, labelTxt, v) => `<div class="mtc-stat mktorg-row"><span class="mktorg-dot" style="background:${dotColor}"></span><div><div class="label">${labelTxt}</div><div class="value">${fmt(v)} <span class="mktorg-pct">(${pct(v)})</span></div></div></div>`;
+  const otherRow = otherV ? row('var(--text-secondary)', L('Otros','Other'), otherV) : '';
+  return `<div class="modal-head">${iconChip('grid','var(--brand-accent)')}<h3>${label} — ${L('por Marketing Organization','by Marketing Organization')}</h3></div>
+    <div class="mktorg-modal-body">
+      ${row('#0066FF','OE Adult',oeV)}
+      ${row('#D9720A','OE Junior',jrV)}
+      ${otherRow}
+    </div>`;
 }
 /* Weekday multi-select — supports both interaction styles asked for: Ctrl/Cmd+click TOGGLES one
    day in/out of the current selection (like a file manager's ctrl-click), plain click-and-drag
@@ -2250,89 +2381,126 @@ function wireWeekdaySelector(container, onChange){
     });
   });
 }
-/* Full panel HTML — lives inside renderGroupMenuYoy()'s own menu, right below "Otras vistas"
-   (explicit ask for placement). Hidden entirely while a non-total MarketingOrg filter is active
-   (see yoyCustomRange's own comment for why) rather than shown-but-silently-wrong. */
-function yoyCustomRangePanelHtml(){
-  if(yoyMktOrgFilter!=='total') return '';
+/* Category labels shared by the panel buttons, the subtitle, and the lámina title itself (item 4:
+   "esto también cambia el título de la lámina y ya no es siempre YOY"). */
+const YOY_CATEGORY_LABELS = {
+  YOY: {es:'Año vs año anterior', en:'Year over year'},
+  QOQ: {es:'Trimestre vs trimestre anterior', en:'Quarter over quarter'},
+  MOM: {es:'Mes vs mes anterior', en:'Month over month'},
+  WOW: {es:'Semana vs semana anterior', en:'Week over week'},
+  CUSTOM: {es:'Comparación personalizada', en:'Custom comparison'},
+};
+/* Summary block ONLY — the exact-dates readout + the "peras con peras" warning, re-rendered on
+   every date/category/mode change. Deliberately its OWN function, separate from the static
+   inputs/buttons around it: see wireYoyCustomRangePanel's own comment for why splitting this out
+   was the actual fix for item 2 ("la interfaz para cambiar una fecha... se traba, se sale"). */
+function ycrSummaryHtml(){
   const {start:aStart, end:aEnd} = yoyActiveActualRange();
   const {start:cStart, end:cEnd} = yoyActiveCompareRange();
-  const cmp = yoyCustomRange.compareMode==='custom' ? rangesComparable(aStart,aEnd,cStart,cEnd) : {ok:true};
+  const cmp = rangesComparable(aStart,aEnd,cStart,cEnd);
   const warningHtml = (!cmp.ok) ? `<div class="ycr-warning">⚠️ ${
     !cmp.daysMatch
       ? L(`Los periodos no tienen la misma cantidad de días (${cmp.daysA} vs ${cmp.daysB}).`,`The periods don't have the same number of days (${cmp.daysA} vs ${cmp.daysB}).`)
       : L('Los periodos tienen la misma cantidad de días, pero distinta distribución de días de la semana.','The periods have the same day count, but a different weekday distribution.')
   }</div>` : '';
+  return `<div id="ycrSummary"><div class="ycr-exact-dates">
+      <div>${L('Actual','Current')}: <b>${fmtYoyRange({start:aStart,end:aEnd})[LANG]}</b></div>
+      <div>${L('Comparación','Comparison')}: <b>${fmtYoyRange({start:cStart,end:cEnd})[LANG]}</b></div>
+    </div>${warningHtml}</div>`;
+}
+function updateYcrSummary(){
+  const el = document.getElementById('ycrSummary');
+  if(el) el.outerHTML = ycrSummaryHtml();
+}
+/* Full panel HTML — lives inside renderGroupMenuYoy()'s own menu, right below "Otras vistas"
+   (explicit ask for placement). Hidden entirely while the Junior investment-filter isn't showing
+   BOTH marketing orgs (see yoyCustomRange's own comment for why) rather than shown-but-silently-
+   wrong. */
+function yoyCustomRangePanelHtml(){
+  if(!yoyMktOrgShowsTotal()) return '';
+  const {start:aStart, end:aEnd} = yoyActiveActualRange();
   const availCurrent = yoyDailyDataRange('current');
   const availPrior = yoyDailyDataRange('prior');
   const availabilityHtml = (availCurrent && availPrior) ? `<div class="ycr-availability">
       <div>${L('Datos 2026 disponibles','2026 data available')}: <b>${fmtDatePoint(availCurrent.start)[LANG]} – ${fmtDatePoint(availCurrent.end)[LANG]}</b></div>
       <div>${L('Datos 2025 disponibles','2025 data available')}: <b>${fmtDatePoint(availPrior.start)[LANG]} – ${fmtDatePoint(availPrior.end)[LANG]}</b></div>
     </div>` : '';
+  const cat = yoyCustomRange.category || 'YOY';
+  const categoryBtns = ['YOY','QOQ','MOM','WOW','CUSTOM'].map(k=>
+    `<button type="button" class="${cat===k?'on':''}" data-category="${k}">${k==='CUSTOM'?L('Personalizado','Custom'):k}</button>`
+  ).join('');
   return `<div class="side-menu-header">${L('Rango de fechas personalizado','Custom date range')}</div>
     <label><input type="checkbox" id="yoyCustomRangeToggle" ${yoyCustomRange.enabled?'checked':''}> ${L('Activar rango personalizado','Enable custom range')}</label>
-    <div class="ycr-body" style="${yoyCustomRange.enabled?'':'display:none'}">
+    <div class="ycr-body" id="ycrBody" style="${yoyCustomRange.enabled?'':'display:none'}">
       ${availabilityHtml}
       <div class="ycr-row"><span>${L('Periodo actual','Current period')}</span></div>
       <div class="ycr-dates"><input type="date" id="yoyActualStart" value="${aStart}" ${availCurrent?`min="${availCurrent.start}" max="${availCurrent.end}"`:''}><span>→</span><input type="date" id="yoyActualEnd" value="${aEnd}" ${availCurrent?`min="${availCurrent.start}" max="${availCurrent.end}"`:''}></div>
       <div class="ycr-row"><span>${L('Comparar contra','Compare against')}</span></div>
-      <div class="ycr-compare-modes">
+      <div class="ycr-compare-modes" id="yoyCategoryModes">${categoryBtns}</div>
+      <div class="ycr-compare-modes" id="yoyAlignmentModes" style="${cat==='YOY'?'':'display:none'}">
         <button type="button" class="${yoyCustomRange.compareMode==='shifted'?'on':''}" data-cmpmode="shifted">${L('Mismos días de semana','Same weekdays')}</button>
         <button type="button" class="${yoyCustomRange.compareMode==='exact'?'on':''}" data-cmpmode="exact">${L('Mismas fechas','Same dates')}</button>
-        <button type="button" class="${yoyCustomRange.compareMode==='custom'?'on':''}" data-cmpmode="custom">${L('Personalizado','Custom')}</button>
       </div>
-      <div class="ycr-dates" id="yoyCompareCustomRow" style="${yoyCustomRange.compareMode==='custom'?'':'display:none'}">
-        <input type="date" id="yoyCompareStart" value="${cStart}" ${availPrior?`min="${availPrior.start}" max="${availPrior.end}"`:''}><span>→</span><input type="date" id="yoyCompareEnd" value="${cEnd}" ${availPrior?`min="${availPrior.start}" max="${availPrior.end}"`:''}>
+      <div class="ycr-dates" id="yoyCompareCustomRow" style="${cat==='CUSTOM'?'':'display:none'}">
+        <input type="date" id="yoyCompareStart" value="${yoyCustomRange.compareStart||yoyActiveCompareRange().start}"><span>→</span><input type="date" id="yoyCompareEnd" value="${yoyCustomRange.compareEnd||yoyActiveCompareRange().end}">
       </div>
-      <div class="ycr-exact-dates">
-        <div>${L('Actual','Current')}: <b>${fmtYoyRange({start:aStart,end:aEnd}).es}</b></div>
-        <div>${L('Comparación','Comparison')}: <b>${fmtYoyRange({start:cStart,end:cEnd}).es}</b></div>
-      </div>
-      ${warningHtml}
+      ${ycrSummaryHtml()}
       <div class="side-menu-header" style="margin-top:10px">${L('Filtrar por día de semana','Filter by weekday')}</div>
       ${weekdaySelectorHtml()}
     </div>`;
 }
+/* Every interaction here does a TARGETED DOM update (class/style toggles + updateYcrSummary())
+   instead of ever re-rendering the whole panel. Real bug found by the user (item 2 — "se traba,
+   se sale, no se puede escribir bien"): the old version called a rerenderPanel() that replaced
+   the WHOLE .yoy-custom-range-col innerHTML, including the <input type="date"> the visitor was
+   actively typing into, on every single 'change' event — destroying and recreating the input
+   mid-edit, which loses focus/cursor state and reads as the field "kicking you out". None of
+   these 4 date inputs (or the category/alignment buttons) are ever destroyed now; only the small
+   read-only summary text below them re-renders. */
 function wireYoyCustomRangePanel(menu){
   const col = menu.querySelector('.yoy-custom-range-col');
   if(!col) return;
-  const rerenderPanel = () => { col.innerHTML = yoyCustomRangePanelHtml(); wireYoyCustomRangePanel(menu); };
+  const afterChange = () => { saveYoyCustomRange(); updateYcrSummary(); refreshSlideYoy(); };
   document.getElementById('yoyCustomRangeToggle')?.addEventListener('change', e=>{
     yoyCustomRange.enabled = e.target.checked;
+    const body = document.getElementById('ycrBody');
+    if(body) body.style.display = e.target.checked ? '' : 'none';
     saveYoyCustomRange();
-    rerenderPanel();
     refreshSlideYoy();
   });
   document.getElementById('yoyActualStart')?.addEventListener('change', e=>{
     yoyCustomRange.actualStart = e.target.value || null;
-    saveYoyCustomRange();
-    rerenderPanel();
-    refreshSlideYoy();
+    afterChange();
   });
   document.getElementById('yoyActualEnd')?.addEventListener('change', e=>{
     yoyCustomRange.actualEnd = e.target.value || null;
-    saveYoyCustomRange();
-    rerenderPanel();
-    refreshSlideYoy();
+    afterChange();
   });
   document.getElementById('yoyCompareStart')?.addEventListener('change', e=>{
     yoyCustomRange.compareStart = e.target.value || null;
-    saveYoyCustomRange();
-    rerenderPanel();
-    refreshSlideYoy();
+    afterChange();
   });
   document.getElementById('yoyCompareEnd')?.addEventListener('change', e=>{
     yoyCustomRange.compareEnd = e.target.value || null;
-    saveYoyCustomRange();
-    rerenderPanel();
-    refreshSlideYoy();
+    afterChange();
   });
-  col.querySelectorAll('[data-cmpmode]').forEach(btn=>{
+  col.querySelectorAll('#yoyCategoryModes [data-category]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.dataset.category === (yoyCustomRange.category||'YOY')) return;
+      yoyCustomRange.category = btn.dataset.category;
+      col.querySelectorAll('#yoyCategoryModes [data-category]').forEach(b=> b.classList.toggle('on', b===btn));
+      const alignEl = document.getElementById('yoyAlignmentModes');
+      if(alignEl) alignEl.style.display = (yoyCustomRange.category==='YOY') ? '' : 'none';
+      const customEl = document.getElementById('yoyCompareCustomRow');
+      if(customEl) customEl.style.display = (yoyCustomRange.category==='CUSTOM') ? '' : 'none';
+      afterChange();
+    });
+  });
+  col.querySelectorAll('#yoyAlignmentModes [data-cmpmode]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       yoyCustomRange.compareMode = btn.dataset.cmpmode;
-      saveYoyCustomRange();
-      rerenderPanel();
-      refreshSlideYoy();
+      col.querySelectorAll('#yoyAlignmentModes [data-cmpmode]').forEach(b=> b.classList.toggle('on', b===btn));
+      afterChange();
     });
   });
   const weekdaySel = document.getElementById('yoyWeekdaySelector');
@@ -2700,7 +2868,7 @@ function enterDeck(deckId, slideIdx){
   DATA = DATA_BY_DECK[DECK_ID];
   marketingOrgFilter = 'total';
   applyMarketingOrgFilter();
-  yoyMktOrgFilter = 'total';
+  yoyMktOrgFilter = {oe:true, junior:true};
   includeBrazil = true;
   applyBrazilMerge(); // (re)applies the merge on the freshly-entered deck's own DATA object — DATA.actuals=... mutates DATA_BY_DECK[DECK_ID] IN PLACE, so this must run explicitly here, not just reset via the includeBrazil flag alone.
   setBrand(currentDeck().brandKey);
@@ -2994,7 +3162,7 @@ function onMonthChange(value){
   DATA_BY_DECK = rebuildDataByDeck(cutoff);
   DATA = DATA_BY_DECK[DECK_ID];
   marketingOrgFilter = 'total'; applyMarketingOrgFilter();
-  yoyMktOrgFilter = 'total';
+  yoyMktOrgFilter = {oe:true, junior:true};
   includeBrazil = true; applyBrazilMerge();
   buildDeck();
 }
@@ -3313,7 +3481,7 @@ function slideDaily(){
   const dCols = COL_DEFS.filter(c=> dailyTrackerCols[c.key]);
   const dGridTemplate = `1.25fr ${dCols.map(c=>c.weight+'fr').join(' ')}`;
 
-  function dailyCellHtml(key, a, b){
+  function dailyCellHtml(key, a, b, country){
     switch(key){
       case 'Spend': return metricCell(a.Spend, b.Spend, fmtUSD, true, false);
       case 'SpendShare': { const s = heroActual.Spend ? a.Spend/heroActual.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
@@ -3327,7 +3495,10 @@ function slideDaily(){
       case 'AvgPrice': return metricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
       case 'MarginPct': return metricCell(mncc(a), mncc(b), fmtPct, false, true);
       case 'NewCash': return metricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
-      case 'NewCashSemaphore': return mnccTemperatureCell(mncc(a), mncc(b));
+      // Costa Rica's OE Adult spend/volume is too thin for this ratio to mean anything reliable —
+      // forced gray "no signal" instead of a green/red that would just be small-sample noise
+      // (explicit ask, 2026-08-14; Junior's own Costa Rica investment is real, keeps real color).
+      case 'NewCashSemaphore': return mnccTemperatureCell(mncc(a), mncc(b), country==='Costa Rica' && !DATA.marketingOrgSplit);
       case 'Impact': { const v = impact(a,b); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
       case 'LtvShort': return `<div class="metric-cell muted"><div class="mc-actual">${fmtUSD(ltvShort(a))}</div></div>`;
       case 'FullUnitCmShort': return `<div class="metric-cell muted"><div class="mc-actual">${fmtUSD(fullUnitCmShort(a))}</div></div>`;
@@ -3363,7 +3534,7 @@ function slideDaily(){
     const isSubtotal = c === REST_LATAM_SUBTOTAL_KEY;
     const a = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(actualFor), DAILY_TRACKER_FIELDS) : actualFor(c);
     const b = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(budgetFor), ['Spend','Leads','Sales','NewCash']) : budgetFor(c);
-    const cells = dCols.map((col,i)=> `<div class="metric-col${col.highlight?' highlight':''}${colDividerCls(dCols,i)}" data-metric="${col.key}">${dailyCellHtml(col.key,a,b)}</div>`).join('');
+    const cells = dCols.map((col,i)=> `<div class="metric-col${col.highlight?' highlight':''}${colDividerCls(dCols,i)}" data-metric="${col.key}">${dailyCellHtml(col.key,a,b,c)}</div>`).join('');
     const label = isSubtotal ? L('LATAM (excl. México y Argentina)','LATAM (excl. Mexico & Argentina)') : (LANG==='es' ? COUNTRY_LABEL_ES[c] : COUNTRY_LABEL_EN[c]);
     const deemphasized = c === 'Costa Rica';
     /* Brazil, when merged in via "Agregar Brasil", is appended after every real LatAm country
@@ -3442,11 +3613,19 @@ function fmtDatePoint(iso){
   const [y,m,d] = iso.split('-').map(Number);
   return {es:`${d} ${MONTHS_ES[m-1]} ${y}`, en:`${MONTHS_EN[m-1]} ${d}, ${y}`};
 }
+/* Bug found 2026-08-14 (user report): the original version only ever read the DAY component of
+   range.end, reusing range.start's month/year for both sides — silent garbage the moment a range
+   crosses a month or year boundary (e.g. a shifted-weekday YOY compare for "1-31 jul 2026" lands on
+   "2 jul - 1 ago 2025", which the old code rendered as the nonsensical "2-1 julio 2025"). Now
+   branches on whether start/end share a month and year. */
 function fmtYoyRange(range){
-  const [ry,rm,rd1] = range.start.split('-').map(Number);
-  const rd2 = Number(range.end.split('-')[2]);
-  const mEs = MONTHS_ES[rm-1], mEn = MONTHS_EN[rm-1];
-  return {es:`${rd1}-${rd2} ${mEs} ${ry}`, en:`${mEn} ${rd1}-${rd2}, ${ry}`};
+  const [sy,sm,sd] = range.start.split('-').map(Number);
+  const [ey,em,ed] = range.end.split('-').map(Number);
+  const sMEs = MONTHS_ES[sm-1], sMEn = MONTHS_EN[sm-1];
+  const eMEs = MONTHS_ES[em-1], eMEn = MONTHS_EN[em-1];
+  if(sy===ey && sm===em) return {es:`${sd}-${ed} ${sMEs} ${sy}`, en:`${sMEn} ${sd}-${ed}, ${sy}`};
+  if(sy===ey) return {es:`${sd} ${sMEs} – ${ed} ${eMEs} ${sy}`, en:`${sMEn} ${sd} – ${eMEn} ${ed}, ${sy}`};
+  return {es:`${sd} ${sMEs} ${sy} – ${ed} ${eMEs} ${ey}`, en:`${sMEn} ${sd}, ${sy} – ${eMEn} ${ed}, ${ey}`};
 }
 function slideYoy(){
   const isBrazil = currentDeck().region === 'Brazil';
@@ -3464,7 +3643,7 @@ function slideYoy(){
      long comment on yoyCustomRange above) — computed ONCE per render, not once per country, to
      avoid re-aggregating the whole 5-month dataset per row (this project already hit, and fixed,
      exactly this kind of per-item-redundant-recompute performance bug once this same session). */
-  const customRangeActive = yoyCustomRange.enabled && yoyMktOrgFilter==='total';
+  const customRangeActive = yoyCustomRange.enabled && yoyMktOrgShowsTotal();
   const customActuals = customRangeActive ? yoyCustomActualsByCountry() : null;
   const customCompare = customRangeActive ? yoyCustomComparisonByCountry() : null;
   const actualFor = c => {
@@ -3487,7 +3666,7 @@ function slideYoy(){
   const yCols = YOY_COL_DEFS.filter(c=> yoyView.cols[c.key]);
   const yGridTemplate = `1.25fr ${yCols.map(c=>c.weight+'fr').join(' ')}`;
 
-  function yoyCellHtml(key, a, b){
+  function yoyCellHtml(key, a, b, country){
     switch(key){
       case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false);
       // Media Spend/CPL/Paid+Organic spend: YoY-exclusive, see YOY_COL_DEFS's own comment for why.
@@ -3504,7 +3683,8 @@ function slideYoy(){
       case 'AvgPrice': return yoyMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
       case 'MarginPct': return yoyMetricCell(mncc(a), mncc(b), fmtPct, false, true);
       case 'NewCash': return yoyMetricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
-      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactTemperaturePct(a,b));
+      // Same Costa-Rica-OE gray override as Daily Tracker's dailyCellHtml — see its comment.
+      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactTemperaturePct(a,b), country==='Costa Rica' && !DATA.marketingOrgSplit);
       // Net Impact reverted to the standard 2-value (actual/año anterior) + delta format here,
       // explicit ask 2026-08-11: "no veo ambos valores como se ve en Spend" — YoY-only revert (see
       // netImpactTemperaturePct's own comment for why this lámina, unlike Lámina A/Daily Tracker,
@@ -3550,13 +3730,17 @@ function slideYoy(){
       : h.muted
         ? `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(h.av)}">${h.fmt(h.av)}</div></div>`
         : yoyMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp,signCls);
-    return `<div class="bh-kpi${h.highlight?' highlight':''}${h.semaphore||h.muted?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
+    // Item 7 (explicit ask, Junior only): Spend/Leads/Sales/NewCash hero tiles open a
+    // MarketingOrg breakdown modal on click — see MKTORG_MODAL_METRICS's own comment for why
+    // only these 4 are offered. Independent of the footer investment-filter buttons (item 5).
+    const mktOrgClickable = DATA.yoyDailyByMktOrg && MKTORG_MODAL_METRICS.has(c.key);
+    return `<div class="bh-kpi${h.highlight?' highlight':''}${h.semaphore||h.muted?' muted':''}${mktOrgClickable?' mktorg-clickable':''}" data-metric="${c.key}"${mktOrgClickable?' data-modal="yoy-mktorg"':''}><div><div class="label">${h.label}</div>${cell}</div></div>`;
   }).join('');
   function countryRowYoy(c){
     const isSubtotal = c === REST_LATAM_SUBTOTAL_KEY;
     const a = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(actualFor), DAILY_TRACKER_FIELDS) : actualFor(c);
     const b = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(yoyFor), DAILY_TRACKER_FIELDS) : yoyFor(c);
-    const cells = yCols.map((col,i)=> `<div class="metric-col${col.highlight?' highlight':''}${colDividerCls(yCols,i)}" data-metric="${col.key}">${yoyCellHtml(col.key,a,b)}</div>`).join('');
+    const cells = yCols.map((col,i)=> `<div class="metric-col${col.highlight?' highlight':''}${colDividerCls(yCols,i)}" data-metric="${col.key}">${yoyCellHtml(col.key,a,b,c)}</div>`).join('');
     // Abbreviated ONLY in this lamina (explicit ask, 2026-08) — Daily Tracker's own countryRow()
     // keeps the full "LATAM (excl. México y Argentina)" label, deliberately not touched.
     const label = isSubtotal ? 'LT Excl. MX & AR' : (LANG==='es' ? COUNTRY_LABEL_ES[c] : COUNTRY_LABEL_EN[c]);
@@ -3584,25 +3768,44 @@ function slideYoy(){
     ? `${flagIcon('Brazil')} ${L(`Brasil · vs ${rangeLabel.es}`,`Brazil · vs ${rangeLabel.en}`)}`
     : L(`Consolidado ${regionLabel()} · vs ${rangeLabel.es}`,`Consolidated ${regionLabel()} · vs ${rangeLabel.en}`);
   const deckLabelYoy = `${currentDeck().brand} · ${regionLabel()}`;
-  const [yy, ym] = DATA.meta.month.split('-').map(Number);
   const yday = DATA.meta.asOfDay;
+  /* Dynamic title + subtitle (items 4 and 6, explicit ask): the lámina used to hardcode "YOY" and
+     a generic "vs mismo período año anterior" line no matter what the custom-range panel actually
+     had active — wrong the moment QOQ/MOM/WOW/a weekday filter/a shifted-vs-exact choice came into
+     play. Falls back to the original MTD-vs-last-year framing whenever the custom range itself is
+     off (customRangeActive false), so a visitor who's never touched the panel sees exactly the
+     same title/subtitle as before this change. */
+  const activeYoyCategory = customRangeActive ? (yoyCustomRange.category || 'YOY') : 'YOY';
+  const yoyCatShort = activeYoyCategory==='CUSTOM' ? L('Personalizado','Custom') : activeYoyCategory;
+  const yoySubActualRange = customRangeActive ? yoyActiveActualRange() : {start:`${DATA.meta.month}-01`, end:`${DATA.meta.month}-${String(yday).padStart(2,'0')}`};
+  const yoySubCompareRange = customRangeActive ? yoyActiveCompareRange() : DATA.yoyByCountry[yoyView.dateMode+'Range'];
+  const yoySubWeekday = weekdayRangeLabel();
+  const yoySubAlignment = activeYoyCategory==='YOY'
+    ? (yoyCustomRange.compareMode==='exact' ? L('mismas fechas','same dates') : L('mismos días de semana','same weekdays'))
+    : '';
+  const yoyCatFull = YOY_CATEGORY_LABELS[activeYoyCategory];
+  const yoySubtitleEs = `${deckLabelYoy} · ${yoyCatFull.es} (${yoyCatShort}) · Actual ${fmtYoyRange(yoySubActualRange).es} vs Comparación ${fmtYoyRange(yoySubCompareRange).es} · ${yoySubWeekday.es}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
+  const yoySubtitleEn = `${deckLabelYoy} · ${yoyCatFull.en} (${yoyCatShort}) · Actual ${fmtYoyRange(yoySubActualRange).en} vs Comparison ${fmtYoyRange(yoySubCompareRange).en} · ${yoySubWeekday.en}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
   /* dateModeToggle footer buttons ("Mismas fechas"/"Mismos días de semana") removed 2026-08-14,
      explicit ask: redundant with the equivalent "Comparar contra" buttons already inside the
      custom date range panel (yoyCustomRangePanelHtml's compareMode buttons), now that custom
      range is enabled by default. yoyView.dateMode itself is untouched — still the fallback path
      read by yoyComparisonByMode()/fmtYoyRange() whenever yoyCustomRange.enabled is false — this
      only removes the now-redundant footer UI, not the underlying state. */
-  /* Junior-only 3-way investment filter, footer-center. "Total Junior" = every result Junior's
-     funnel gets credit for, any funder; "Solo Inversión Junior" = MarketingOrganization===
-     "Open English Junior" only; "Solo Inversión Adulto" = MarketingOrganization==="OE" only (see
-     yoyActualsByCountry()/yoyComparisonByMode() — this is its own data slice, not the "overflow"
-     bucket used elsewhere, since the user's definition here is exactly those 2 orgs, nothing
-     folded in). Gated on DATA.actualsByCountryMktOrg existing — Adult decks never have it. */
+  /* Junior-only investment filter, footer-center. Redesigned 2026-08-14 (explicit ask — the old
+     3-button radio "Total Junior"/"Solo Inversión Junior"/"Solo Inversión Adulto" wasn't clear
+     about what it meant) into 2 independently-togglable buttons naming the org directly; "both
+     on" (the default) is what used to be the separate "Total Junior" button — see yoyMktOrgKey()
+     for exactly how the 2-way {oe,junior} state maps back onto the 3 data-slice keys every
+     existing consumer (DATA.actualsByCountryMktOrg/yoyByCountryMktOrg) still expects. Gated on
+     DATA.actualsByCountryMktOrg existing — Adult decks never have it. */
   const mktOrgToggleYoy = DATA.actualsByCountryMktOrg ? `
-    <div class="footer-toggle yoymktorg-toggle">
-      <button class="${yoyMktOrgFilter==='total'?'on':''}" data-yoymktorg="total">${L('Total Junior','Total Junior')}</button>
-      <button class="${yoyMktOrgFilter==='juniorOwn'?'on':''}" data-yoymktorg="juniorOwn">${L('Solo Inversión Junior','Junior-only investment')}</button>
-      <button class="${yoyMktOrgFilter==='adultOnly'?'on':''}" data-yoymktorg="adultOnly">${L('Solo Inversión Adulto','Adult-only investment')}</button>
+    <div class="yoymktorg-toggle-wrap">
+      <span class="yoymktorg-label">${L('Resultados de Junior según inversión de:','Junior results by investment from:')}</span>
+      <div class="footer-toggle yoymktorg-toggle">
+        <button class="${yoyMktOrgFilter.oe?'on':''}" data-yoymktorg="oe">OE Adult</button>
+        <button class="${yoyMktOrgFilter.junior?'on':''}" data-yoymktorg="junior">OE Junior</button>
+      </div>
     </div>` : '';
   /* Same redundancy fix as slideDaily(): Brazil's own "country row" is a single row that just
      repeats the hero's own totals — no comparison value once there's only 1 country — so the
@@ -3620,9 +3823,7 @@ function slideYoy(){
         ${rowsHtmlYoy}
       </div>`;
   return `<section class="slide slide-daily slide-yoy${isBrazil?' slide-daily-br':''}${yoyValueVis.hideActual?' hide-actual-value':''}${yoyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('yoy')}"><div class="slide-inner">
-    ${headerBlock('s-yoy', 'YOY Branded Channels KPIs', 'YOY Branded Channels KPIs',
-      `${deckLabelYoy} · Actual al ${yday} de ${MONTHS_ES[ym-1]} de ${yy} vs mismo período año anterior`,
-      `${deckLabelYoy} · Actual through ${MONTHS_EN[ym-1]} ${yday}, ${yy} vs same period last year`)}
+    ${headerBlock('s-yoy', `${yoyCatShort} Branded Channels KPIs`, `${yoyCatShort} Branded Channels KPIs`, yoySubtitleEs, yoySubtitleEn)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlYoy}
     </div>
   </div>${footerBar(false, {legend:yoyView.cols.NewCashSemaphore, legendYoy:true, centerExtra: mktOrgToggleYoy})}</section>`;
@@ -3651,6 +3852,7 @@ function renderDeck(){
   buildDeckSwitcher();
   wireCardClicks();
   wireYoyMktOrgToggle();
+  wireYoyMktOrgModalClicks();
   wireMonthSelector();
   renderGroupMenu();
   renderGroupMenuDaily();
@@ -3816,22 +4018,25 @@ function refreshSlideYoy(){
   if(idx<0) return;
   document.querySelectorAll('.slide')[idx].outerHTML = slideYoy();
   wireYoyMktOrgToggle();
+  wireYoyMktOrgModalClicks();
   fitHeroDeltas('yoy');
   if(!autoFitBusy) applyAutoFit('yoy');
 }
 function wireYoyMktOrgToggle(){
   document.querySelectorAll('[data-yoymktorg]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(btn.dataset.yoymktorg === yoyMktOrgFilter) return;
-      yoyMktOrgFilter = btn.dataset.yoymktorg;
+      const which = btn.dataset.yoymktorg; // 'oe' | 'junior'
+      const next = {...yoyMktOrgFilter, [which]: !yoyMktOrgFilter[which]};
+      if(!next.oe && !next.junior) return; // at least one must stay on — a no-op click, not a silent empty state
+      yoyMktOrgFilter = next;
       refreshSlideYoy();
-      // Real bug found verifying this feature: refreshSlideYoy() only re-renders the SLIDE
-      // (table/hero) — the custom-range panel lives in the separate #groupMenuYoy element, which
-      // only renderGroupMenuYoy() touches. Without this, yoyCustomRangePanelHtml()'s own
-      // yoyMktOrgFilter!=='total' guard (it's not wired for the MarketingOrg split — see that
+      // Real bug found verifying this feature originally: refreshSlideYoy() only re-renders the
+      // SLIDE (table/hero) — the custom-range panel lives in the separate #groupMenuYoy element,
+      // which only renderGroupMenuYoy() touches. Without this, yoyCustomRangePanelHtml()'s own
+      // !yoyMktOrgShowsTotal() guard (it's not wired for the MarketingOrg split — see that
       // function's comment) would go stale: the panel would keep showing/accepting input after
-      // switching to a non-"total" org filter, even though slideYoy() already correctly ignores
-      // it in that state (customRangeActive there re-checks yoyMktOrgFilter fresh every render) —
+      // switching away from "both orgs", even though slideYoy() already correctly ignores it in
+      // that state (customRangeActive there re-checks yoyMktOrgShowsTotal() fresh every render) —
       // so the NUMBERS were never wrong, only the panel's own visibility was misleadingly stale.
       renderGroupMenuYoy();
     });
@@ -3889,6 +4094,18 @@ function wireCardClicks(){
       const metricEl = e.target.closest('[data-metric]');
       const initialTab = metricEl ? metricEl.dataset.metric : 'Spend';
       openModal('xl', channelDetailModal(key, m.label, m.icon, m.accent), dlg=>wireModalTabs(dlg, key, m.label, m.icon, m.accent, initialTab));
+    });
+  });
+}
+/* Item 7's modal trigger — re-wired both on a full deck rebuild (renderDeck) AND on every
+   refreshSlideYoy() (category/date/weekday-filter changes replace the whole slide's outerHTML,
+   including these hero tiles, so a listener attached before that point is gone). */
+function wireYoyMktOrgModalClicks(){
+  document.querySelectorAll('[data-modal="yoy-mktorg"]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const key = el.dataset.metric;
+      const label = el.querySelector('.label')?.textContent || key;
+      openModal(null, mktOrgBreakdownModalHtml(key, label));
     });
   });
 }
