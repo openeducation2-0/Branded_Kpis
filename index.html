@@ -1135,14 +1135,17 @@ const MONTHS_EN = ['January','February','March','April','May','June','July','Aug
 const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const DAYS_ES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-/* Substituted at build time (see the rebuild command in reference-branformance-files memory) with
-   the real wall-clock moment the HTML was generated — never computed client-side (new Date()
-   would show the VIEWER's current time, which is not "when this report was last updated" and
-   could be days/timezones removed from generation). Plain numbers, not an ISO string re-parsed by
-   `new Date()`, specifically to avoid that re-parse silently reinterpreting the time in the
-   VIEWER's browser timezone instead of the generator's — dow follows JS's Date.getDay()
-   convention (Sunday=0), already converted from Python's Monday=0 at build time. */
-const GENERATED_AT = {"y": 2026, "m": 8, "d": 13, "dow": 4, "hh": 6, "mm": 7};
+/* CORRECTED 2026-08-14: this used to be a literal hardcoded here, substituted by hand each time
+   index.html itself was rebuilt -- made sense in the OLD project where the whole HTML got
+   regenerated daily, but in THIS project index.html only changes when CODE changes, while data
+   refreshes daily into Drive-hosted JSON without ever touching this file. A hardcoded value here
+   could never reflect an actual daily refresh (confirmed real bug: it kept reading a stale date
+   from this file's last code edit, unrelated to same-day data refreshes actually happening) --
+   now read per-request from the loaded data itself (DATA.meta.generatedAt, stamped fresh by
+   03_export_deck_json.py every time the daily refresh exports run) inside finishBootstrap()
+   below. Same reasoning as before for using plain numbers instead of an ISO string re-parsed by
+   `new Date()` (avoids the VIEWER's browser timezone silently reinterpreting the generator's
+   time) -- dow still follows JS's Date.getDay() convention (Sunday=0).
 /* Every slide subtitle that compares Budget vs Actual must spell out the exact date ranges —
    "Budget mes completo, Actual MTD" alone doesn't say WHICH dates, which read as vague/
    inaccurate ("en ningún lado veo que esto sea hasta el 22 de julio"). Computed from
@@ -1359,7 +1362,12 @@ function pacingCell(av, bv, fmtFn, higherIsBetter){
     // line instead of competing for width on one, so both can render at a legible size.
     pacingHtml = `<div class="mc-delta mc-delta-split ${good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(good)}${L('Pacing','Pacing')} ${(valuePacing*100).toFixed(0)}%</div><div class="mc-delta-sub">(${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div></div>`;
   }
-  return `<div class="metric-cell"><div class="mc-actual">${fmtFn(av)}</div><div class="mc-budget">${L('Bgt (mes completo)','Bgt (full month)')} ${fmtFn(bv)}</div>${pacingHtml}</div>`;
+  // "(mes completo)"/"(full month)" dropped 2026-08-14: redundant with the slide subtitle, which
+  // already spells out "Budget: full month (...)" — repeating it in every single cell was real,
+  // measured extra width that pushed Spend/Leads/NewCash into visible overflow now that those
+  // columns are visible by default (see task tracking this fix). Matches metricCell()'s own
+  // plain "Bgt $X" label used everywhere else (Daily Tracker, YoY).
+  return `<div class="metric-cell"><div class="mc-actual">${fmtFn(av)}</div><div class="mc-budget">${L('Bgt','Bgt')} ${fmtFn(bv)}</div>${pacingHtml}</div>`;
 }
 /* Professional monochrome line icons (stroke=currentColor) — never emoji, see DESIGN_SYSTEM.md */
 const ICONS = {
@@ -3767,13 +3775,17 @@ function finishBootstrap(){
   homeH1.dataset.es = `Branformance ${MONTHS_ES[homeM-1]} ${homeY}`;
   homeH1.dataset.en = `Branformance ${MONTHS_EN[homeM-1]} ${homeY}`;
 
-  // Last-updated note, from the real build-time timestamp.
-  const pad = n => String(n).padStart(2,'0');
-  const g = GENERATED_AT;
-  const timeStr = `${pad(g.hh)}:${pad(g.mm)}`;
+  // Last-updated note — from the data itself (stamped by 03_export_deck_json.py at export time),
+  // not a hardcoded build-time literal (see GENERATED_AT's old declaration comment for why that
+  // was wrong here). Guarded: an export from before this field existed would omit it.
+  const g = anyMeta.generatedAt;
   const noteEl = document.getElementById('updateNote');
-  noteEl.dataset.es = `Última actualización: ${DAYS_ES[g.dow]}, ${g.d} de ${MONTHS_ES[g.m-1]} de ${g.y}, ${timeStr}`;
-  noteEl.dataset.en = `Last updated: ${DAYS_EN[g.dow]}, ${MONTHS_EN[g.m-1]} ${g.d}, ${g.y}, ${timeStr}`;
+  if (g) {
+    const pad = n => String(n).padStart(2,'0');
+    const timeStr = `${pad(g.hh)}:${pad(g.mm)}`;
+    noteEl.dataset.es = `Última actualización: ${DAYS_ES[g.dow]}, ${g.d} de ${MONTHS_ES[g.m-1]} de ${g.y}, ${timeStr}`;
+    noteEl.dataset.en = `Last updated: ${DAYS_EN[g.dow]}, ${MONTHS_EN[g.m-1]} ${g.d}, ${g.y}, ${timeStr}`;
+  }
 
   syncStaticLang();
 
