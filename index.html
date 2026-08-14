@@ -197,6 +197,7 @@ button{font-family:var(--font-titles);cursor:pointer;}
 .deck-tile-brand{position:relative;z-index:1;font-weight:700;font-size:var(--text-base);}
 .deck-tile-region{position:relative;z-index:1;display:flex;align-items:center;gap:6px;font-size:var(--text-sm);color:#dbe9ff;opacity:.9;}
 #updateNote{margin-top:var(--space-2);color:#dbe9ff;opacity:.75;font-size:var(--text-sm);letter-spacing:.02em;}
+#dataRangeNote{color:#dbe9ff;opacity:.6;font-size:var(--text-xs);letter-spacing:.02em;}
 
 /* ================= LOGIN ================= */
 /* Same fixed full-screen brand-gradient treatment as #home (see above) -- login is the very
@@ -1134,6 +1135,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
       </button>
     </div>
     <p id="updateNote"></p>
+    <p id="dataRangeNote"></p>
   </div>
 </div>
 
@@ -3934,6 +3936,17 @@ function finishBootstrap(){
     noteEl.dataset.es = `Última actualización: ${DAYS_ES[g.dow]}, ${g.d} de ${MONTHS_ES[g.m-1]} de ${g.y}, ${timeStr}`;
     noteEl.dataset.en = `Last updated: ${DAYS_EN[g.dow]}, ${MONTHS_EN[g.m-1]} ${g.d}, ${g.y}, ${timeStr}`;
   }
+
+  // Data-coverage note (explicit ask, 2026-08-14: "sería útil... también decir la data con la que
+  // dispone el reporte, desde qué fecha hasta qué fecha") — min/max straight from the loaded raw
+  // data, never hardcoded, so this stays correct as the backfill start date or the daily cutoff
+  // change over time. Reuses fmtDatePoint(), the same formatter already used for this exact
+  // purpose in the YoY custom-range panel's "Datos disponibles" lines.
+  const range = getAvailableDateRange();
+  const rangeEl = document.getElementById('dataRangeNote');
+  const rMin = fmtDatePoint(range.min), rMax = fmtDatePoint(range.max);
+  rangeEl.dataset.es = `Datos disponibles: ${rMin.es} – ${rMax.es}`;
+  rangeEl.dataset.en = `Data available: ${rMin.en} – ${rMax.en}`;
 
   syncStaticLang();
 
