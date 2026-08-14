@@ -654,17 +654,29 @@ function loadDataByDeckSync(dataDir, cutoffDate) {
  * does, so rebuildDataByDeck()/getAvailableDateRange() work identically afterward regardless of
  * which loader populated it. This is the REAL, permanent loading path (Drive + login) -- the sync
  * XHR loader above is a temporary bridge for the pre-login verification stage only.
+ *
+ * cutoffDate is OPTIONAL: pass null/undefined to auto-detect "today" as whatever the latest date
+ * any deck's dailyRows actually covers -- this is what lets the daily refresh script (Phase 3)
+ * update ONLY the Drive-synced JSON files and have the site pick up the new day automatically,
+ * with no code redeploy needed. Pass an explicit date only to pin to a specific past cutoff (e.g.
+ * the month selector rebuilding for an already-closed month).
  */
-async function loadDataByDeckAsync(fetchOneFn, cutoffDate) {
+async function loadDataByDeckAsync(fetchOneFn, cutoffDate){
   const deckIds = ['OE-LATAM', 'OE-BR', 'JR-LATAM', 'JR-BR'];
   const rawByDeck = {};
-  const out = {};
   for (const deckId of deckIds) {
-    const raw = await fetchOneFn(deckId);
-    rawByDeck[deckId] = raw;
-    out[deckId] = buildDeckData(raw, deckId, cutoffDate);
+    rawByDeck[deckId] = await fetchOneFn(deckId);
   }
   _rawByDeckCache = rawByDeck;
+
+  let effectiveCutoff = cutoffDate;
+  if (!effectiveCutoff) {
+    effectiveCutoff = getAvailableDateRange().max;
+  }
+  const out = {};
+  for (const deckId of deckIds) {
+    out[deckId] = buildDeckData(rawByDeck[deckId], deckId, effectiveCutoff);
+  }
   return out;
 }
 
