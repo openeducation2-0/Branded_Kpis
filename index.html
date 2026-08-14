@@ -4016,7 +4016,12 @@ async function onLoginSuccess(){
       { headers: { Authorization: `Bearer ${driveAccessToken}` } });
     const userInfo = await userInfoResp.json();
     const email = userInfo.email || '';
-    if(!email.toLowerCase().endsWith('@' + ALLOWED_EMAIL_DOMAIN)){
+    const emailDomain = email.toLowerCase().split('@')[1] || '';
+    // Accept the domain itself AND any subdomain of it (e.g. business.openenglish.com is a real
+    // internal address, not an outside account) -- a strict "@openenglish.com" suffix match wrongly
+    // rejected dolores.yanes@business.openenglish.com even though her account has real Drive access
+    // to the export folder (bug found 2026-08-14).
+    if(emailDomain !== ALLOWED_EMAIL_DOMAIN && !emailDomain.endsWith('.' + ALLOWED_EMAIL_DOMAIN)){
       showLoginError(L(
         `Esta página es solo para cuentas @${ALLOWED_EMAIL_DOMAIN}. Iniciaste sesión como ${email || 'una cuenta desconocida'}.`,
         `This page is only for @${ALLOWED_EMAIL_DOMAIN} accounts. You signed in as ${email || 'an unknown account'}.`
