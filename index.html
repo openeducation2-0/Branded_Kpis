@@ -1504,10 +1504,10 @@ function yoyComparisonByMode(dateMode){
    key set and per-key shape (both come from the same build_lamina_a_deck()-family pipeline)
    before writing this — only the 3 DERIVED fields (LtvShort/FullUnitCmShort/FullCmPctShort on
    actuals; CPL/CMPS/MarginPct on trends) need recomputing after summing, never summed directly
-   (they're ratios, not additive). Never persisted (resets to off on every enterDeck), matching
-   the marketingOrgFilter/yoyMktOrgFilter precedent — this is a scope toggle, not a saved view
-   preference. */
-let includeBrazil = false;
+   (they're ratios, not additive). Never persisted (resets to on, the default since 2026-08-14,
+   on every enterDeck) — this is a scope toggle, not a saved view preference, so a manual
+   uncheck lasts only until the next deck switch. */
+let includeBrazil = true;
 const MERGE_ACTUAL_RAW_FIELDS = ['Spend','Leads','Sales','NewCash','FullCM','ProjRevShort','TotalEnrollments'];
 function mergeActualTotal(a, b){
   const out = {};
@@ -1951,11 +1951,11 @@ function saveDailyValueVis(){ localStorage.setItem(LS_DAILY_VALUE_VIS, JSON.stri
    for the same period (DATA.yoyByCountry) instead of a budget file. dateMode picks which of the
    two pre-computed 2025 windows to compare against — see add_yoy_by_country() in
    build_data_all.py for how "exact"/"shifted" are derived. */
-const LS_YOY_VIEW = 'branformance_yoy_view';
+const LS_YOY_VIEW = 'branformance_yoy_view_v2';
 let yoyView = {
-  // MediaSpend/PaidOrganicSpend start hidden (explicit ask: "oculta por ahora"); MediaCPL starts
-  // visible (no such qualifier on that one) — see YOY_COL_DEFS for what these three are.
-  cols: {Spend:true, MediaSpend:false, SpendShare:false, Leads:false, LeadsShare:true, Sales:false, SalesShare:true, CPL:true, MediaCPL:true, Conversion:true, CMPS:true, AvgPrice:true, MarginPct:true, NewCash:true, Impact:true, LtvShort:true, FullUnitCmShort:true, FullCmPctShort:true, NewCashSemaphore:true, PaidOrganicSpend:false},
+  // Default view set 2026-08-14 per user's own screenshot of the group menu — see COLUMNS
+  // checkbox state that request specified; every column not listed there starts hidden.
+  cols: {Spend:true, MediaSpend:true, SpendShare:false, Leads:true, LeadsShare:false, Sales:false, SalesShare:false, CPL:true, MediaCPL:false, Conversion:true, CMPS:false, AvgPrice:false, MarginPct:true, NewCash:false, Impact:true, LtvShort:false, FullUnitCmShort:false, FullCmPctShort:true, NewCashSemaphore:true, PaidOrganicSpend:true},
   dateMode: 'exact',
 };
 (function loadYoyView(){
@@ -1983,9 +1983,9 @@ function saveYoyView(){ localStorage.setItem(LS_YOY_VIEW, JSON.stringify(yoyView
    null-guard already does this safely, see its own comment) rather than showing stale or wrong
    numbers. Also only wired for yoyMktOrgFilter==='total' (Junior's own MarketingOrg split has no
    matching 5-month daily dataset) — the panel is hidden while a non-total org filter is active. */
-const LS_YOY_CUSTOM_RANGE = 'branformance_yoy_customrange';
+const LS_YOY_CUSTOM_RANGE = 'branformance_yoy_customrange_v2';
 let yoyCustomRange = {
-  enabled: false,
+  enabled: true, // default-on 2026-08-14, explicit ask
   actualStart: null, actualEnd: null,     // null = fall back to the deck's own MTD default
   compareMode: 'shifted',                  // 'exact' | 'shifted' | 'custom'
   compareStart: null, compareEnd: null,    // only read when compareMode==='custom'
@@ -2229,8 +2229,8 @@ function wireYoyCustomRangePanel(menu){
   if(weekdaySel) wireWeekdaySelector(weekdaySel, ()=>{ saveYoyCustomRange(); refreshSlideYoy(); });
 }
 /* Own state, deliberately not shared with dailyValueVis — see that declaration's comment. */
-const LS_YOY_VALUE_VIS = 'branformance_yoy_valueVis';
-let yoyValueVis = {hideActual:false, hideBudget:false};
+const LS_YOY_VALUE_VIS = 'branformance_yoy_valueVis_v2';
+let yoyValueVis = {hideActual:false, hideBudget:true};
 (function loadYoyValueVis(){
   try{
     const saved = JSON.parse(localStorage.getItem(LS_YOY_VALUE_VIS)||'null');
@@ -2555,8 +2555,8 @@ function enterDeck(deckId, slideIdx){
   marketingOrgFilter = 'total';
   applyMarketingOrgFilter();
   yoyMktOrgFilter = 'total';
-  includeBrazil = false;
-  applyBrazilMerge(); // resets DATA.actuals/.trends/.budget back to unmerged — see its own comment: DATA.actuals=... mutates DATA_BY_DECK[DECK_ID] IN PLACE, so a prior merged visit must be explicitly undone here, not just reset via the includeBrazil flag alone.
+  includeBrazil = true;
+  applyBrazilMerge(); // (re)applies the merge on the freshly-entered deck's own DATA object — DATA.actuals=... mutates DATA_BY_DECK[DECK_ID] IN PLACE, so this must run explicitly here, not just reset via the includeBrazil flag alone.
   setBrand(currentDeck().brandKey);
   document.title = `${currentDeck().brand} ${currentDeck().region} — Strategy & Performance`;
   document.getElementById('home').style.display='none';
@@ -2850,7 +2850,7 @@ function onMonthChange(value){
   DATA = DATA_BY_DECK[DECK_ID];
   marketingOrgFilter = 'total'; applyMarketingOrgFilter();
   yoyMktOrgFilter = 'total';
-  includeBrazil = false; applyBrazilMerge();
+  includeBrazil = true; applyBrazilMerge();
   buildDeck();
 }
 
@@ -3435,15 +3435,12 @@ function slideYoy(){
   const deckLabelYoy = `${currentDeck().brand} · ${regionLabel()}`;
   const [yy, ym] = DATA.meta.month.split('-').map(Number);
   const yday = DATA.meta.asOfDay;
-  /* Moved out of the hero card (used to live inside .bh-head), then out of its own standalone
-     row between header and body (used to live there as .yoydate-toggle) — explicit ask: it now
-     lives in the footer, beside the logo, styled subtly (.footer-toggle) rather than as a
-     full-size slide-level control. */
-  const dateModeToggle = `
-    <div class="footer-toggle yoydate-toggle">
-      <button class="${yoyView.dateMode==='exact'?'on':''}" data-yoydate="exact">${L('Mismas fechas','Same dates')}</button>
-      <button class="${yoyView.dateMode==='shifted'?'on':''}" data-yoydate="shifted">${L('Mismos días de semana','Same weekdays')}</button>
-    </div>`;
+  /* dateModeToggle footer buttons ("Mismas fechas"/"Mismos días de semana") removed 2026-08-14,
+     explicit ask: redundant with the equivalent "Comparar contra" buttons already inside the
+     custom date range panel (yoyCustomRangePanelHtml's compareMode buttons), now that custom
+     range is enabled by default. yoyView.dateMode itself is untouched — still the fallback path
+     read by yoyComparisonByMode()/fmtYoyRange() whenever yoyCustomRange.enabled is false — this
+     only removes the now-redundant footer UI, not the underlying state. */
   /* Junior-only 3-way investment filter, footer-center. "Total Junior" = every result Junior's
      funnel gets credit for, any funder; "Solo Inversión Junior" = MarketingOrganization===
      "Open English Junior" only; "Solo Inversión Adulto" = MarketingOrganization==="OE" only (see
@@ -3477,7 +3474,7 @@ function slideYoy(){
       `${deckLabelYoy} · Actual through ${MONTHS_EN[ym-1]} ${yday}, ${yy} vs same period last year`)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlYoy}
     </div>
-  </div>${footerBar(false, {legend:yoyView.cols.NewCashSemaphore, legendYoy:true, rightExtra: dateModeToggle, centerExtra: mktOrgToggleYoy})}</section>`;
+  </div>${footerBar(false, {legend:yoyView.cols.NewCashSemaphore, legendYoy:true, centerExtra: mktOrgToggleYoy})}</section>`;
 }
 
 /* ---------------- BUILD / RENDER ---------------- */
@@ -3502,7 +3499,6 @@ function renderDeck(){
   buildTOC();
   buildDeckSwitcher();
   wireCardClicks();
-  wireYoyDateToggle();
   wireYoyMktOrgToggle();
   wireMonthSelector();
   renderGroupMenu();
@@ -3668,20 +3664,9 @@ function refreshSlideYoy(){
   const idx = SLIDES.findIndex(s=>s.id==='yoy');
   if(idx<0) return;
   document.querySelectorAll('.slide')[idx].outerHTML = slideYoy();
-  wireYoyDateToggle();
   wireYoyMktOrgToggle();
   fitHeroDeltas('yoy');
   if(!autoFitBusy) applyAutoFit('yoy');
-}
-function wireYoyDateToggle(){
-  document.querySelectorAll('[data-yoydate]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(btn.dataset.yoydate === yoyView.dateMode) return;
-      yoyView.dateMode = btn.dataset.yoydate;
-      saveYoyView();
-      refreshSlideYoy();
-    });
-  });
 }
 function wireYoyMktOrgToggle(){
   document.querySelectorAll('[data-yoymktorg]').forEach(btn=>{
