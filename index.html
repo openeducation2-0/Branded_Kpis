@@ -995,6 +995,11 @@ body.home-mode .zoom-pct{color:rgba(255,255,255,.85);}
 .weekday-selector{display:flex;gap:3px;padding:2px 10px 8px;user-select:none;}
 .wd-btn{flex:1;border:1px solid var(--border-soft);background:var(--bg-section);color:var(--text-secondary);font-size:10.5px;font-weight:700;padding:5px 0;border-radius:var(--radius-md);cursor:pointer;transition:.1s;}
 .wd-btn.on{background:var(--brand-accent);border-color:var(--brand-accent);color:#fff;}
+/* A day the active period can't even contain (explicit ask, 2026-08-17) — visually muted and
+   inert, taking precedence over `.on` (a stale/default "selected" state on a day that's now
+   disabled must still read as off-limits, not highlighted). */
+.wd-btn:disabled{cursor:not-allowed;opacity:.35;}
+.wd-btn:disabled.on{background:var(--bg-section);border-color:var(--border-soft);color:var(--text-secondary);}
 #tocList button, #deckSwitcherList button{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 10px;border-radius:var(--radius-sm);font-size:var(--text-sm);color:var(--text-primary);}
 #tocList button:hover, #deckSwitcherList button:hover{background:var(--color-soft-blue);}
 #switcherTitle{margin-top:6px;}
@@ -1466,13 +1471,37 @@ function metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, budgetLabel, 
   const actualCls = extraActualClass ? ` ${extraActualClass}` : '';
   return `<div class="metric-cell"><div class="mc-actual${actualCls}">${fmtFn(av)}</div><div class="mc-budget">${budgetLabel||'Bgt'} ${fmtFn(bv)}</div>${deltaHtml}</div>`;
 }
+/* Which label the comparison side gets, per the ACTIVE comparison category — real bug reported
+   2026-08-17: every YoY cell said "Año ant." (prior YEAR) even while comparing against last WEEK
+   (WOW), last MONTH (MOM), last QUARTER (QOQ), or a fully custom period — "no se ajusta realmente
+   a lo que se está viendo". Only trusts the category when the table's OWN numbers are actually
+   category-driven (`yoyCustomRange.enabled && yoyMktOrgShowsTotal()`, the same condition slideYoy()
+   computes as `customRangeActive`) — otherwise the panel is hidden/inert and the table has already
+   fallen back to the real prior-YEAR comparison regardless of whatever category was last selected,
+   so "Año ant." stays correct there. SCOPE LIMIT, flagged rather than engineered around: the
+   MarketingOrg modal's own cells (mktOrgMetricCell) are ALWAYS category-driven (crossDeckBundle
+   never falls back), so in the narrow combination of a non-YOY category selected while filtered to
+   a single marketing org (yoyMktOrgShowsTotal() false), the modal's label can lag one step behind
+   its own numbers — accepted rather than threading a label override through every call site for a
+   combination nobody has hit yet. */
+function yoyPriorLabel(){
+  if(yoyCustomRange.enabled && yoyMktOrgShowsTotal()){
+    switch(yoyCustomRange.category){
+      case 'QOQ': return L('Trim. ant.','Prior qtr');
+      case 'MOM': return L('Mes ant.','Prior mo');
+      case 'WOW': return L('Sem. ant.','Prior wk');
+      case 'CUSTOM': return L('Período ant.','Prior period');
+    }
+  }
+  return L('Año ant.','Prior yr'); // YOY, or custom range inactive/inert
+}
 /* YoY's comparison value is last year's actual, never a budget — metricCell's default "Bgt"
    label would be wrong here, so every YoY call site goes through this thin wrapper instead
    (same signature, just fixes the label) rather than threading a 7th argument through each of
    yoyCellHtml's ~11 cases. Deliberately does NOT pass splitDelta:true — see laminaAMetricCell()
    below, the only lámina that gets the 2-line split. */
 function yoyMetricCell(av, bv, fmtFn, invert, isPP, extraActualClass){
-  return metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, L('Año ant.','Prior yr'));
+  return metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, yoyPriorLabel());
 }
 /* Lámina A ("...Pacing vs reforecast...") is the ONLY lámina whose delta splits the pp/%
    parenthetical onto its own line — explicit ask, 2026-08, later scoped down to just this
@@ -2308,14 +2337,41 @@ function yoyActiveCompareRange(){
 }
 function yoyWeekdaySet(){ return (yoyCustomRange.weekdays && yoyCustomRange.weekdays.length) ? new Set(yoyCustomRange.weekdays) : null; }
 const WD_ABBR_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], WD_ABBR_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+/* Which weekdays literally occur at least once within [startISO,endISO] — null when the period
+   spans MORE than 7 days, since any span that long necessarily touches all 7 weekdays somewhere
+   (pigeonhole principle), so "which days occur" stops being a meaningful restriction at all past
+   that length. Added 2026-08-17 (explicit ask) to (a) gray out weekday-filter buttons that could
+   never match anything in a short period, and (b) make the subtitle describe a short period's REAL
+   days instead of a generic default. */
+function periodWeekdaysIfShort(startISO, endISO){
+  if(daysInclusive(startISO,endISO) > 7) return null;
+  const counts = weekdayCounts(startISO,endISO);
+  const days = new Set();
+  counts.forEach((c,d)=>{ if(c>0) days.add(d); });
+  return days;
+}
 /* Item 6 (explicit ask): the subtitle must always say which weekdays are actually included, not
    just imply "the whole range" when a weekday filter has silently narrowed it — "poner si es
-   lunes a domingo (Mon-Sun) o cualquier combinación de días que se haga". All 7 selected (the
-   default) still gets an explicit "Lun-Dom" label rather than being omitted, a contiguous
-   subset collapses to a dash range (Monday-first, matching how a work week reads), anything
-   non-contiguous just lists the days — always something concrete, never a silent assumption. */
-function weekdayRangeLabel(){
-  const days = (yoyCustomRange.weekdays && yoyCustomRange.weekdays.length) ? yoyCustomRange.weekdays.slice().sort((a,b)=>a-b) : [0,1,2,3,4,5,6];
+   lunes a domingo (Mon-Sun) o cualquier combinación de días que se haga". Rewritten 2026-08-17
+   (2nd explicit ask) to also account for the PERIOD's own length, not just the raw filter setting:
+   - Period ≤ 7 days: the label reflects the REAL calendar weekdays present in that specific period
+     (intersected with any active filter) — e.g. a Thu-Sun period reads "Thu-Sun", never a generic
+     "Mon-Sun" that isn't literally true of those dates ("aunque es jueves a domingo... dice
+     Mon-Sun").
+   - Period > 7 days with NO real filter narrowing it: "Mon-Sun" would be trivially true (any
+     multi-week span touches every weekday somewhere) and adds no information, so it's omitted
+     entirely (returns null) instead of printed as noise ("no hace sentido... debería no aparecer
+     nada"). A REAL narrowing filter (fewer than 7 days picked) still prints even on a long period,
+     since that genuinely changes what gets counted. */
+function weekdayRangeLabel(periodStart, periodEnd){
+  const periodDays = periodWeekdaysIfShort(periodStart, periodEnd); // null = period > 7 days
+  const filterDays = (yoyCustomRange.weekdays && yoyCustomRange.weekdays.length) ? new Set(yoyCustomRange.weekdays) : null;
+  let days = periodDays
+    ? [...periodDays].filter(d => !filterDays || filterDays.has(d))
+    : (filterDays ? [...filterDays] : [0,1,2,3,4,5,6]);
+  days.sort((a,b)=>a-b);
+  if(!days.length) return null; // filter and period share no weekday at all -- nothing coherent to print
+  if(!periodDays && days.length===7) return null; // long, unfiltered period -- "Mon-Sun" is trivially true
   if(days.length===7) return {es:'Lun-Dom', en:'Mon-Sun'};
   const mondayFirst = days.map(d => d===0?7:d).sort((a,b)=>a-b); // Mon=1..Sun=7 for contiguity purposes only
   const isContiguous = days.length>1 && mondayFirst.every((d,i)=> i===0 || d===mondayFirst[i-1]+1);
@@ -2516,22 +2572,66 @@ document.addEventListener('mouseup', ()=>{ weekdayDragState = null; });
    RENDER ORDER changes. Drag-to-select-a-range (wireWeekdaySelector below) has to key off the
    VISUAL position, not the raw day number, since Sun(0) is no longer adjacent to Sat(6) on screen. */
 const WD_VISUAL_ORDER = [1,2,3,4,5,6,0];
+/* null = every weekday is selectable (the active period spans more than 7 days, so all 7
+   necessarily occur somewhere in it) — otherwise the Set of weekdays the SHORT period can even
+   contain, per periodWeekdaysIfShort(). Explicit ask, 2026-08-17: "debería habilitar solo los días
+   que se pueden tocar en el periodo de tiempo seleccionado" — a day that never occurs in the actual
+   period can't narrow anything by being picked, so it's disabled rather than offered as a no-op
+   choice. Keyed off the ACTUAL period specifically (not the compare side) — same "el periodo de
+   tiempo seleccionado" framing the user used, and the one line "Periodo actual" labels in this
+   same panel. */
+function weekdayEnabledSet(){
+  const {start,end} = yoyActiveActualRange();
+  return periodWeekdaysIfShort(start,end);
+}
 function weekdaySelectorHtml(){
   const labels = {0:L('Dom','Sun'),1:L('Lun','Mon'),2:L('Mar','Tue'),3:L('Mié','Wed'),4:L('Jue','Thu'),5:L('Vie','Fri'),6:L('Sáb','Sat')};
   const selected = new Set(yoyCustomRange.weekdays || [0,1,2,3,4,5,6]);
+  const enabledSet = weekdayEnabledSet();
   return `<div class="weekday-selector" id="yoyWeekdaySelector">
-    ${WD_VISUAL_ORDER.map((d,i)=>`<button type="button" class="wd-btn${selected.has(d)?' on':''}" data-wd="${d}" data-vidx="${i}">${labels[d]}</button>`).join('')}
+    ${WD_VISUAL_ORDER.map((d,i)=>{
+      const isEnabled = !enabledSet || enabledSet.has(d);
+      return `<button type="button" class="wd-btn${selected.has(d)?' on':''}" data-wd="${d}" data-vidx="${i}"${isEnabled?'':' disabled'}>${labels[d]}</button>`;
+    }).join('')}
   </div>`;
+}
+/* Targeted update (same "never destroy the input mid-interaction" discipline as
+   syncYcrDateInputs()/updateYcrSummary() above) — re-applies disabled/on state on the EXISTING
+   weekday buttons whenever the actual period might have changed (date edits, category switch),
+   instead of re-rendering the whole panel. Also reconciles a stale explicit selection that no
+   longer overlaps the new period AT ALL back to "no filter" (null) — the always-valid fallback —
+   rather than silently leaving every count at zero with no visible explanation. */
+function updateWeekdaySelectorEnabled(){
+  const container = document.getElementById('yoyWeekdaySelector');
+  if(!container) return;
+  const enabledSet = weekdayEnabledSet();
+  if(yoyCustomRange.weekdays && yoyCustomRange.weekdays.length && enabledSet && !yoyCustomRange.weekdays.some(d=>enabledSet.has(d))){
+    yoyCustomRange.weekdays = null;
+  }
+  const selected = new Set(yoyCustomRange.weekdays || [0,1,2,3,4,5,6]);
+  container.querySelectorAll('.wd-btn').forEach(btn=>{
+    const d = Number(btn.dataset.wd);
+    btn.disabled = !(!enabledSet || enabledSet.has(d));
+    btn.classList.toggle('on', selected.has(d));
+  });
 }
 function wireWeekdaySelector(container, onChange){
   const buttons = () => Array.from(container.querySelectorAll('.wd-btn'));
+  const enabledSet = weekdayEnabledSet(); // null = every day selectable (period > 7 days)
   const currentSet = () => new Set(yoyCustomRange.weekdays || [0,1,2,3,4,5,6]);
   const applySelection = (set) => {
-    yoyCustomRange.weekdays = (set.size===7) ? null : Array.from(set).sort();
+    // Never let a selection include a day the period can't even contain — matters for a drag that
+    // spans OVER a disabled button sitting BETWEEN two enabled ones (e.g. a period crossing the
+    // Sun/Mon boundary leaves a disabled run in the MIDDLE of the Monday-first visual strip, not
+    // at an edge a drag would naturally stop at).
+    if(enabledSet) set = new Set([...set].filter(d=>enabledSet.has(d)));
+    const fullyOpen = enabledSet ? set.size===enabledSet.size : set.size===7;
+    yoyCustomRange.weekdays = (fullyOpen || set.size===0) ? null : Array.from(set).sort();
     buttons().forEach(b => b.classList.toggle('on', set.has(Number(b.dataset.wd))));
     onChange();
   };
   buttons().forEach(btn=>{
+    if(btn.disabled) return; // a day the current period can't contain is never interactive
     const day = Number(btn.dataset.wd);
     const vidx = Number(btn.dataset.vidx);
     btn.addEventListener('mousedown', e=>{
@@ -2595,15 +2695,24 @@ function updateYcrSummary(){
    while the summary text below already shows the new ones. Safe to call unconditionally: when a
    manual override already exists, yoyActiveActualRange()/yoyActiveCompareRange() return that
    override regardless of category, so this just re-writes the same value in that case. */
-function syncYcrDateInputs(){
+/* `skipId` (added 2026-08-17): NEVER re-write the value of the date <input> the visitor is
+   actively editing, even to the exact same value it already holds. Real bug reported: typing a
+   new day into a compare-date field right after typing its month would occasionally snap the
+   MONTH back to a stale value ("cuando el día a 06, de una me cambia el mes a 08") — a native
+   <input type=date> resets its internal per-segment edit/focus state on ANY `.value` assignment,
+   even a byte-identical no-op one, so reassigning the very field whose own 'change' handler just
+   fired (which is ALWAYS a no-op re-write of what the browser already just committed) was fighting
+   the widget's own segment-advance behavior. The other 3 fields still need the write — e.g.
+   changing the actual-period start can shift the compare field's computed default. */
+function syncYcrDateInputs(skipId){
   const {start:aStart, end:aEnd} = yoyActiveActualRange();
   const startEl = document.getElementById('yoyActualStart'), endEl = document.getElementById('yoyActualEnd');
-  if(startEl) startEl.value = aStart;
-  if(endEl) endEl.value = aEnd;
+  if(startEl && startEl.id!==skipId) startEl.value = aStart;
+  if(endEl && endEl.id!==skipId) endEl.value = aEnd;
   const {start:cStart, end:cEnd} = yoyActiveCompareRange();
   const cStartEl = document.getElementById('yoyCompareStart'), cEndEl = document.getElementById('yoyCompareEnd');
-  if(cStartEl) cStartEl.value = cStart;
-  if(cEndEl) cEndEl.value = cEnd;
+  if(cStartEl && cStartEl.id!==skipId) cStartEl.value = cStart;
+  if(cEndEl && cEndEl.id!==skipId) cEndEl.value = cEnd;
 }
 /* Full panel HTML — lives inside renderGroupMenuYoy()'s own menu, right below "Otras vistas"
    (explicit ask for placement). Hidden entirely while the Junior investment-filter isn't showing
@@ -2656,7 +2765,7 @@ function yoyCustomRangePanelHtml(){
 function wireYoyCustomRangePanel(menu){
   const col = menu.querySelector('.yoy-custom-range-col');
   if(!col) return;
-  const afterChange = () => { saveYoyCustomRange(); syncYcrDateInputs(); updateYcrSummary(); refreshSlideYoy(); };
+  const afterChange = (skipId) => { updateWeekdaySelectorEnabled(); saveYoyCustomRange(); syncYcrDateInputs(skipId); updateYcrSummary(); refreshSlideYoy(); };
   document.getElementById('yoyCustomRangeToggle')?.addEventListener('change', e=>{
     yoyCustomRange.enabled = e.target.checked;
     const body = document.getElementById('ycrBody');
@@ -2666,19 +2775,19 @@ function wireYoyCustomRangePanel(menu){
   });
   document.getElementById('yoyActualStart')?.addEventListener('change', e=>{
     yoyCustomRange.actualStart = e.target.value || null;
-    afterChange();
+    afterChange(e.target.id);
   });
   document.getElementById('yoyActualEnd')?.addEventListener('change', e=>{
     yoyCustomRange.actualEnd = e.target.value || null;
-    afterChange();
+    afterChange(e.target.id);
   });
   document.getElementById('yoyCompareStart')?.addEventListener('change', e=>{
     yoyCustomRange.compareStart = e.target.value || null;
-    afterChange();
+    afterChange(e.target.id);
   });
   document.getElementById('yoyCompareEnd')?.addEventListener('change', e=>{
     yoyCustomRange.compareEnd = e.target.value || null;
-    afterChange();
+    afterChange(e.target.id);
   });
   col.querySelectorAll('#yoyCategoryModes [data-category]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -3977,7 +4086,15 @@ function slideYoy(){
   const yoyCatShort = activeYoyCategory==='CUSTOM' ? L('Personalizado','Custom') : activeYoyCategory;
   const yoySubActualRange = customRangeActive ? yoyActiveActualRange() : {start:`${DATA.meta.month}-01`, end:`${DATA.meta.month}-${String(yday).padStart(2,'0')}`};
   const yoySubCompareRange = customRangeActive ? yoyActiveCompareRange() : DATA.yoyByCountry[yoyView.dateMode+'Range'];
-  const yoySubWeekday = weekdayRangeLabel();
+  // Weekday filtering has ZERO effect on the numbers outside custom-range mode (yoyWeekdaySet() is
+  // only ever read by the custom-range aggregation path, see aggregateYoyDaily's call sites) — a
+  // weekday-scope prefix would describe a filter that isn't actually filtering anything there, so
+  // it's simply absent (explicit ask, 2026-08-17: same underlying issue as the >7-day case below —
+  // the label must match what's REALLY being counted, not show a cosmetic default). May still be
+  // null even when active — see weekdayRangeLabel's own comment for when it omits itself.
+  const yoySubWeekday = customRangeActive ? weekdayRangeLabel(yoySubActualRange.start, yoySubActualRange.end) : null;
+  const yoySubWeekdayPrefixEs = yoySubWeekday ? `${yoySubWeekday.es}: ` : '';
+  const yoySubWeekdayPrefixEn = yoySubWeekday ? `${yoySubWeekday.en}: ` : '';
   const yoySubAlignment = CATS_WITH_ALIGNMENT.has(activeYoyCategory)
     ? (yoyCustomRange.compareMode==='exact' ? L('mismas fechas','same dates') : L('mismos días de semana','same weekdays'))
     : '';
@@ -3986,9 +4103,10 @@ function slideYoy(){
      deck, then the bare ranges (no "Actual"/"Comparación" label words), then the category's short
      code, with the alignment choice (only for YOY/QOQ/MOM, see CATS_WITH_ALIGNMENT) tacked on as
      an optional final segment. Generalizes to any brand/region/category — nothing here is
-     WOW-specific, that was just the example given. */
-  const yoySubtitleEs = `${yoySubWeekday.es}: ${deckLabelYoy} · ${fmtYoyRange(yoySubActualRange).es} vs ${fmtYoyRange(yoySubCompareRange).es} · ${yoyCatShort}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
-  const yoySubtitleEn = `${yoySubWeekday.en}: ${deckLabelYoy} · ${fmtYoyRange(yoySubActualRange).en} vs ${fmtYoyRange(yoySubCompareRange).en} · ${yoyCatShort}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
+     WOW-specific, that was just the example given. The weekday prefix itself is OPTIONAL (see
+     yoySubWeekday above) — when absent, the subtitle just starts directly at the deck label. */
+  const yoySubtitleEs = `${yoySubWeekdayPrefixEs}${deckLabelYoy} · ${fmtYoyRange(yoySubActualRange).es} vs ${fmtYoyRange(yoySubCompareRange).es} · ${yoyCatShort}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
+  const yoySubtitleEn = `${yoySubWeekdayPrefixEn}${deckLabelYoy} · ${fmtYoyRange(yoySubActualRange).en} vs ${fmtYoyRange(yoySubCompareRange).en} · ${yoyCatShort}${yoySubAlignment?` · ${yoySubAlignment}`:''}`;
   /* dateModeToggle footer buttons ("Mismas fechas"/"Mismos días de semana") removed 2026-08-14,
      explicit ask: redundant with the equivalent "Comparar contra" buttons already inside the
      custom date range panel (yoyCustomRangePanelHtml's compareMode buttons), now that custom
