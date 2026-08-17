@@ -919,6 +919,42 @@ body.home-mode .hover-zone.center, body.home-mode #groupMenu, body.home-mode #gr
 }
 .group-menu-col label input{cursor:pointer;}
 
+/* ============ ONBOARDING TUTORIAL ============ */
+/* Spotlight coachmark: a full-page transparent blocker (catches/kills clicks on the real page
+   while the tour is active — this is a guided walkthrough, not hands-on practice) + a "hole"
+   element whose oversized box-shadow dims everything BUT its own rect (classic spotlight-cutout
+   trick, no clip-path/mask math needed) + a floating card with the copy and Back/Next/Skip. */
+.tutorial-blocker{position:fixed;inset:0;z-index:9990;background:transparent;}
+.tutorial-spotlight{
+  position:fixed;z-index:9991;pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(8,12,22,.72);
+  transition:top .3s cubic-bezier(.4,0,.2,1),left .3s cubic-bezier(.4,0,.2,1),
+             width .3s cubic-bezier(.4,0,.2,1),height .3s cubic-bezier(.4,0,.2,1);
+}
+.tutorial-card{
+  position:fixed;z-index:9992;width:340px;max-width:calc(100vw - 32px);
+  background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-soft);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);padding:var(--space-5);
+  transition:top .3s cubic-bezier(.4,0,.2,1),left .3s cubic-bezier(.4,0,.2,1);
+}
+.tutorial-card.centered{left:50%!important;top:50%!important;transform:translate(-50%,-50%);width:380px;text-align:center;}
+.tutorial-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.tutorial-step-count{font-size:11.5px;font-weight:700;color:var(--text-secondary);letter-spacing:.03em;}
+.tutorial-close{background:none;border:none;font-size:15px;color:var(--text-secondary);cursor:pointer;line-height:1;padding:2px 4px;}
+.tutorial-close:hover{color:var(--text-primary);}
+.tutorial-title{font-size:var(--text-lg);font-weight:800;color:var(--brand-accent);margin:0 0 8px;}
+.tutorial-body{font-size:13.5px;line-height:1.55;color:var(--text-primary);}
+.tutorial-actions{display:flex;align-items:center;justify-content:space-between;margin-top:18px;gap:10px;}
+.tutorial-skip{background:none;border:none;font-size:12px;color:var(--text-secondary);text-decoration:underline;cursor:pointer;padding:4px 0;white-space:nowrap;}
+.tutorial-skip:hover{color:var(--text-primary);}
+.tutorial-nav{display:flex;gap:8px;flex:none;}
+.tutorial-nav button{
+  border:1px solid var(--border-soft);background:var(--bg-card);color:var(--text-primary);
+  border-radius:var(--radius-full);padding:7px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;
+}
+.tutorial-next{background:var(--brand-accent)!important;color:#fff!important;border-color:var(--brand-accent)!important;}
+.tutorial-back:disabled{opacity:.35;cursor:not-allowed;}
+
 /* The clickable "¿Cómo se calculó?" link — deliberately colored + underlined so it visually
    reads as "click this for the math", not just decorative text. Never assert a projection or
    calculated figure without one of these next to it (per explicit feedback: "no puedes dar por
@@ -1211,6 +1247,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
   <button class="icon-btn" id="themeToggle">🌙</button>
   <button class="icon-btn" id="fsToggle">⛶</button>
   <button class="icon-btn" id="homeToggle" data-es="Home" data-en="Home">Home</button>
+  <button class="icon-btn" id="tutorialToggle" title="Ver tutorial">❓</button>
 </div>
 
 <!-- Lámina A only: hover the top-center strip (above the header) to reveal the row/column
@@ -1221,6 +1258,26 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 <div id="groupMenu"></div>
 <div id="groupMenuDaily"></div>
 <div id="groupMenuYoy"></div>
+
+<div id="tutorialOverlay" class="tutorial-overlay" style="display:none">
+  <div class="tutorial-blocker" id="tutorialBlocker"></div>
+  <div class="tutorial-spotlight" id="tutorialSpotlight"></div>
+  <div class="tutorial-card" id="tutorialCard">
+    <div class="tutorial-card-head">
+      <span class="tutorial-step-count" id="tutorialStepCount"></span>
+      <button class="tutorial-close" id="tutorialCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <h3 class="tutorial-title" id="tutorialTitle"></h3>
+    <div class="tutorial-body" id="tutorialBody"></div>
+    <div class="tutorial-actions">
+      <button class="tutorial-skip" id="tutorialSkipBtn"></button>
+      <div class="tutorial-nav">
+        <button class="tutorial-back" id="tutorialBackBtn"></button>
+        <button class="tutorial-next" id="tutorialNextBtn"></button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ============ DECK ============ -->
 <div id="deck">
@@ -3284,6 +3341,252 @@ wireHoverReveal(document.getElementById('hzCenter'), document.getElementById('gr
 document.getElementById('zoomOut').addEventListener('click', ()=>adjustZoom(-ZOOM_STEP));
 document.getElementById('zoomIn').addEventListener('click', ()=>adjustZoom(ZOOM_STEP));
 
+/* ================= ONBOARDING TUTORIAL ================= */
+/* Spotlight-style coachmark tour, shown once automatically right after the first finishBootstrap()
+   post-login, and replayable anytime via the ❓ button in #topControls. Each step's target()
+   returns the element (or [elements] to spotlight the union of several, e.g. the ☰ icon + the
+   panel it opens) to highlight -- null means a centered, untargeted card. onEnter runs BEFORE
+   measuring/positioning (drives real navigation: enterDeck, slide scroll, force-showing a
+   hover-reveal panel via .hover-visible) so layout reflects the step before we read it. The
+   underlying page is intentionally inert during the tour (full-page transparent blocker under the
+   spotlight) -- this is a guided walkthrough, not hands-on practice; real interaction resumes the
+   moment the tour closes. */
+const TUT_LS_KEY = 'brandedkpis_tutorial_seen_v1';
+let tutSteps = [];
+let tutIdx = 0;
+let tutActive = false;
+
+function tutHideAllPanels(){
+  ['tocTrigger','leftMenu','topControls','groupMenu','groupMenuDaily','groupMenuYoy'].forEach(id=>{
+    document.getElementById(id)?.classList.remove('hover-visible');
+  });
+}
+function tutShowTopLeft(){
+  document.getElementById('tocTrigger')?.classList.add('hover-visible');
+  document.getElementById('leftMenu')?.classList.add('hover-visible');
+}
+function tutShowTopRight(){ document.getElementById('topControls')?.classList.add('hover-visible'); }
+function tutShowCenterDaily(){ document.getElementById('groupMenuDaily')?.classList.add('hover-visible'); }
+function tutShowCenterYoy(){ document.getElementById('groupMenuYoy')?.classList.add('hover-visible'); }
+function tutGotoSlide(slideId){
+  const idx = SLIDES.findIndex(s=>s.id===slideId);
+  if(idx<0) return;
+  const scroller = document.getElementById('scroller');
+  const prevBehavior = scroller.style.scrollBehavior;
+  scroller.style.scrollBehavior = 'auto';
+  scroller.scrollTop = idx * window.innerHeight;
+  scroller.style.scrollBehavior = prevBehavior;
+  updateOnLaminaA();
+}
+/* Forces the YoY custom-range panel open regardless of what a returning visitor's own
+   localStorage last had it set to, so the tour can reliably explain it -- mirrors exactly what
+   #yoyCustomRangeToggle's own change handler does (see wireYoyCustomRangePanel above). */
+function tutEnsureYoyCustomRangeOn(){
+  if(yoyCustomRange.enabled) return;
+  yoyCustomRange.enabled = true;
+  saveYoyCustomRange();
+  const cb = document.getElementById('yoyCustomRangeToggle'); if(cb) cb.checked = true;
+  const body = document.getElementById('ycrBody'); if(body) body.style.display = '';
+  refreshSlideYoy();
+}
+function tutNthCol(menuId, idx){
+  const cols = document.querySelectorAll('#'+menuId+' .group-menu-col');
+  return cols[idx] || null;
+}
+function tutUnionRect(elements){
+  const rects = elements.filter(Boolean).map(el=>el.getBoundingClientRect());
+  if(!rects.length) return null;
+  const left = Math.min(...rects.map(r=>r.left)), top = Math.min(...rects.map(r=>r.top));
+  const right = Math.max(...rects.map(r=>r.right)), bottom = Math.max(...rects.map(r=>r.bottom));
+  return {left, top, right, bottom, width:right-left, height:bottom-top};
+}
+function tutTargetRect(step){
+  const t = step.target ? step.target() : null;
+  if(!t) return null;
+  return Array.isArray(t) ? tutUnionRect(t) : t.getBoundingClientRect();
+}
+function tutPositionSpotlight(rect){
+  const sp = document.getElementById('tutorialSpotlight');
+  const pad = 8;
+  if(!rect || (rect.width===0 && rect.height===0)){
+    sp.style.borderRadius = '50%';
+    sp.style.left = (window.innerWidth/2)+'px';
+    sp.style.top = (window.innerHeight/2)+'px';
+    sp.style.width = '0px'; sp.style.height = '0px';
+    return;
+  }
+  sp.style.borderRadius = '14px';
+  sp.style.left = (rect.left-pad)+'px';
+  sp.style.top = (rect.top-pad)+'px';
+  sp.style.width = (rect.width+pad*2)+'px';
+  sp.style.height = (rect.height+pad*2)+'px';
+}
+function tutPositionCard(rect, card){
+  const margin = 16;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if(!rect || (rect.width===0 && rect.height===0)){
+    card.classList.add('centered');
+    card.style.left = ''; card.style.top = '';
+    return;
+  }
+  card.classList.remove('centered');
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  const spaceBelow = vh - rect.bottom, spaceAbove = rect.top;
+  let top = (spaceBelow >= ch+margin || spaceBelow >= spaceAbove) ? rect.bottom + margin : rect.top - ch - margin;
+  top = Math.max(margin, Math.min(top, vh - ch - margin));
+  let left = Math.max(margin, Math.min(rect.left, vw - cw - margin));
+  card.style.top = top+'px';
+  card.style.left = left+'px';
+}
+function tutRenderText(step){
+  const titleEl = document.getElementById('tutorialTitle');
+  const bodyEl = document.getElementById('tutorialBody');
+  titleEl.dataset.es = step.title.es; titleEl.dataset.en = step.title.en;
+  titleEl.textContent = LANG==='es' ? step.title.es : step.title.en;
+  bodyEl.dataset.es = step.body.es; bodyEl.dataset.en = step.body.en;
+  bodyEl.textContent = LANG==='es' ? step.body.es : step.body.en;
+  document.getElementById('tutorialStepCount').textContent = `${tutIdx+1} / ${tutSteps.length}`;
+  const backBtn = document.getElementById('tutorialBackBtn');
+  backBtn.disabled = tutIdx===0;
+  backBtn.dataset.es = 'Atrás'; backBtn.dataset.en = 'Back';
+  backBtn.textContent = L('Atrás','Back');
+  const nextBtn = document.getElementById('tutorialNextBtn');
+  const isLast = tutIdx === tutSteps.length-1;
+  nextBtn.dataset.es = isLast ? 'Finalizar' : 'Siguiente';
+  nextBtn.dataset.en = isLast ? 'Finish' : 'Next';
+  nextBtn.textContent = LANG==='es' ? nextBtn.dataset.es : nextBtn.dataset.en;
+  const skipBtn = document.getElementById('tutorialSkipBtn');
+  skipBtn.dataset.es = 'Saltar tutorial'; skipBtn.dataset.en = 'Skip tutorial';
+  skipBtn.textContent = L('Saltar tutorial','Skip tutorial');
+}
+function tutShow(idx){
+  tutIdx = Math.max(0, Math.min(idx, tutSteps.length-1));
+  const step = tutSteps[tutIdx];
+  tutHideAllPanels();
+  if(step.onEnter) step.onEnter();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(!tutActive) return; // guard: user closed the tour during the 2-frame settle delay
+    const rect = tutTargetRect(step);
+    tutPositionSpotlight(rect);
+    tutRenderText(step);
+    tutPositionCard(rect, document.getElementById('tutorialCard'));
+  }));
+}
+function tutEnd(){
+  tutActive = false;
+  document.getElementById('tutorialOverlay').style.display = 'none';
+  tutHideAllPanels();
+  localStorage.setItem(TUT_LS_KEY, '1');
+}
+function startTutorial(){
+  if(document.body.classList.contains('deck-mode')) goHome(); // always starts from a known state
+  tutSteps = TUTORIAL_STEPS;
+  tutActive = true;
+  document.getElementById('tutorialOverlay').style.display = 'block';
+  tutShow(0);
+}
+document.getElementById('tutorialToggle').addEventListener('click', startTutorial);
+document.getElementById('tutorialCloseBtn').addEventListener('click', tutEnd);
+document.getElementById('tutorialSkipBtn').addEventListener('click', tutEnd);
+document.getElementById('tutorialBackBtn').addEventListener('click', ()=>tutShow(tutIdx-1));
+document.getElementById('tutorialNextBtn').addEventListener('click', ()=>{
+  if(tutIdx >= tutSteps.length-1) tutEnd(); else tutShow(tutIdx+1);
+});
+window.addEventListener('resize', ()=>{
+  if(!tutActive) return;
+  const rect = tutTargetRect(tutSteps[tutIdx]);
+  tutPositionSpotlight(rect);
+  tutPositionCard(rect, document.getElementById('tutorialCard'));
+});
+document.addEventListener('keydown', e=>{ if(tutActive && e.key==='Escape') tutEnd(); });
+
+const TUTORIAL_STEPS = [
+  { target:null,
+    title:{es:"¡Bienvenido a Branded KPIs!", en:"Welcome to Branded KPIs!"},
+    body:{es:"Este recorrido rápido te muestra cómo moverte por el reporte: el Home, las láminas de cada marca, los filtros y los controles generales. Puedes cerrarlo con la ✕ o saltarlo en cualquier momento, incluso ahora mismo.",
+          en:"This quick tour shows you how to move around the report: Home, each brand's láminas, the filters, and the general controls. You can close it with ✕ or skip it at any point, even right now."} },
+  { target:()=>document.querySelector('.deck-grid'),
+    title:{es:"Elige marca y región", en:"Choose brand and region"},
+    body:{es:"Cada tarjeta combina una marca y una región: OE Adult u OE Junior, LatAm o Brasil. Haz clic en cualquiera para entrar a su reporte completo.",
+          en:"Each tile combines a brand and a region: OE Adult or OE Junior, LatAm or Brazil. Click any one to open its full report."} },
+  { target:()=>document.getElementById('updateNote'),
+    title:{es:"Cuándo se actualizó", en:"When it was last updated"},
+    body:{es:"Aquí ves la fecha y hora exacta de la última actualización de datos. El reporte se refresca automáticamente todos los días.",
+          en:"Here you see the exact date and time of the last data refresh. The report updates itself automatically every day."} },
+  { target:()=>document.getElementById('dataRangeNote'),
+    title:{es:"Con qué datos cuentas", en:"What data is available"},
+    body:{es:"Y aquí, el rango completo de fechas disponible en el reporte: desde el inicio del histórico hasta el corte más reciente.",
+          en:"And here, the full date range available in the report -- from the start of the history to the most recent cutoff."} },
+  { target:null, onEnter:()=>enterDeck('OE-LATAM', 1),
+    title:{es:"Vamos a ver un reporte por dentro", en:"Let's look inside a report"},
+    body:{es:"Entramos a OE Adult LatAm como ejemplo — el resto de marcas y regiones funciona exactamente igual.",
+          en:"We just entered OE Adult LatAm as an example -- every other brand and region works exactly the same way."} },
+  { target:()=>[document.getElementById('tocTrigger'), document.getElementById('leftMenu')], onEnter:tutShowTopLeft,
+    title:{es:"Índice y cambio de marca (☰ arriba a la izquierda)", en:"Index and brand switch (☰ top-left)"},
+    body:{es:"Pasa el mouse por la esquina superior izquierda para ver el índice de láminas de este reporte y, más abajo, un acceso directo para saltar a otra marca o región sin volver al Home.",
+          en:"Hover the top-left corner to see this report's lámina index and, below it, a shortcut to jump straight to another brand or region without going back to Home."} },
+  { target:()=>document.getElementById('zoomGroup'), onEnter:tutShowTopRight,
+    title:{es:"Zoom del contenido (%)", en:"Content zoom (%)"},
+    body:{es:"Ajusta el tamaño de la lámina para que se vea completa sin importar tu pantalla o proyector. Se guarda por lámina. Haz doble clic sobre el porcentaje para escribir un valor exacto.",
+          en:"Adjusts the lámina's size so it fits your screen or projector. It's remembered per lámina. Double-click the percentage to type an exact value."} },
+  { target:()=>document.getElementById('langToggle'), onEnter:tutShowTopRight,
+    title:{es:"Idioma", en:"Language"},
+    body:{es:"Cambia entre español e inglés en todo el reporte, incluidos títulos, columnas y este mismo tutorial.",
+          en:"Switches the whole report between Spanish and English, including titles, columns, and this very tutorial."} },
+  { target:()=>document.getElementById('themeToggle'), onEnter:tutShowTopRight,
+    title:{es:"Modo claro / oscuro", en:"Light / dark mode"},
+    body:{es:"El modo oscuro ayuda a descansar la vista en sesiones largas o con poca luz. Tu preferencia se guarda automáticamente para la próxima vez.",
+          en:"Dark mode helps rest your eyes during long sessions or in low light. Your preference is saved automatically for next time."} },
+  { target:()=>document.getElementById('fsToggle'), onEnter:tutShowTopRight,
+    title:{es:"Pantalla completa", en:"Full screen"},
+    body:{es:"Oculta el navegador y aprovecha toda la pantalla — ideal para presentar en una reunión.",
+          en:"Hides the browser chrome and uses the whole screen -- ideal for presenting in a meeting."} },
+  { target:()=>document.getElementById('homeToggle'), onEnter:tutShowTopRight,
+    title:{es:"Volver al Home", en:"Back to Home"},
+    body:{es:"Te regresa a la pantalla principal en cualquier momento, desde cualquier lámina.",
+          en:"Takes you back to the main screen at any time, from any lámina."} },
+  { target:()=>document.getElementById('groupMenuDaily'), onEnter:tutShowCenterDaily,
+    title:{es:"Opciones de esta lámina (arriba al centro)", en:"This lámina's options (top-center)"},
+    body:{es:"Pasa el mouse por la parte superior central para ver las opciones de la lámina que estás viendo. Ojo: este menú cambia según la lámina — cada una tiene sus propias opciones, como vas a ver enseguida.",
+          en:"Hover the top-center strip to see this lámina's own options. Careful: this menu changes per lámina -- each one has its own set of options, as you'll see next."} },
+  { target:()=>tutNthCol('groupMenuDaily',0), onEnter:tutShowCenterDaily,
+    title:{es:"Vista", en:"View"},
+    body:{es:"Oculta el valor Actual o el de Budget si solo quieres ver la diferencia, o combina Brasil dentro de LatAm.",
+          en:"Hide the Actual or the Budget value if you only want to see the difference, or merge Brazil into LatAm."} },
+  { target:()=>tutNthCol('groupMenuDaily',1), onEnter:tutShowCenterDaily,
+    title:{es:"Columnas", en:"Columns"},
+    body:{es:"Elige qué columnas de métricas mostrar en la tabla — Spend, Leads, Ventas, New Cash, MNCC y más. Los cambios se guardan automáticamente.",
+          en:"Choose which metric columns to show in the table -- Spend, Leads, Sales, New Cash, MNCC, and more. Changes save automatically."} },
+  { target:()=>document.getElementById('groupMenuYoy'), onEnter:()=>{ tutGotoSlide('yoy'); tutEnsureYoyCustomRangeOn(); tutShowCenterYoy(); },
+    title:{es:"En otra lámina, el menú cambia", en:"In another lámina, the menu changes"},
+    body:{es:"Ahora estamos en la lámina de comparación YoY. Este mismo menú superior-central ahora tiene una columna extra: el rango de fechas personalizado. Cada lámina muestra solo las opciones que le aplican.",
+          en:"We're now on the YoY comparison lámina. This same top-center menu now has an extra column: the custom date range. Each lámina only shows the options that apply to it."} },
+  { target:()=>document.querySelector('.yoy-custom-range-col'), onEnter:()=>{ tutEnsureYoyCustomRangeOn(); tutShowCenterYoy(); },
+    title:{es:"Rango de fechas personalizado", en:"Custom date range"},
+    body:{es:"Elige cualquier periodo, no solo el mes completo, y compáralo contra el año anterior, el trimestre anterior, el mes anterior, la semana anterior, o un periodo totalmente personalizado.",
+          en:"Pick any period, not just the full month, and compare it against the prior year, prior quarter, prior month, prior week, or a fully custom period."} },
+  { target:()=>document.getElementById('yoyCategoryModes'), onEnter:()=>{ tutEnsureYoyCustomRangeOn(); tutShowCenterYoy(); },
+    title:{es:"Contra qué comparar", en:"What to compare against"},
+    body:{es:"YOY compara contra el mismo periodo del año pasado; QOQ contra el trimestre anterior; MOM contra el mes anterior; WOW contra la semana anterior; y Personalizado te deja elegir tú mismo las dos fechas.",
+          en:"YOY compares against the same period last year; QOQ against the prior quarter; MOM against the prior month; WOW against the prior week; and Custom lets you pick both dates yourself."} },
+  { target:()=>document.getElementById('yoyWeekdaySelector'), onEnter:()=>{ tutEnsureYoyCustomRangeOn(); tutShowCenterYoy(); },
+    title:{es:"Filtrar por día de la semana", en:"Filter by weekday"},
+    body:{es:"Limita la comparación solo a ciertos días — por ejemplo, solo fines de semana. Si tu periodo dura 7 días o menos, solo quedan disponibles los días que realmente están dentro de ese rango.",
+          en:"Limit the comparison to only certain days -- weekends only, for example. If your period is 7 days or shorter, only the days actually inside that range stay selectable."} },
+  { target:()=>document.getElementById('yoyResetBtn'), onEnter:tutShowCenterYoy,
+    title:{es:"Restablecer filtros", en:"Reset filters"},
+    body:{es:"Este botón regresa todos los filtros de esta lámina a sus valores originales — útil si quieres empezar de nuevo.",
+          en:"This button resets every filter on this lámina back to its original values -- handy for a clean start."} },
+  { target:null,
+    title:{es:"Un vistazo a las láminas", en:"A quick look at the láminas"},
+    body:{es:"Portada resume el mes. Forecast Branded by Countries muestra tu avance diario vs. lo esperado, país por país. Pacing vs Reforecast compara Actual vs Budget por canal. Y Comparativo YoY, donde estamos ahora, compara contra el periodo que elijas. Usa el índice (☰, arriba a la izquierda) para saltar entre ellas.",
+          en:"Cover summarizes the month. Forecast Branded by Countries shows your daily progress vs. expected, country by country. Pacing vs Reforecast compares Actual vs Budget by channel. And YoY Comparison, where we are now, compares against whatever period you pick. Use the index (☰, top-left) to jump between them."} },
+  { target:null,
+    title:{es:"¡Listo!", en:"You're all set!"},
+    body:{es:"Ya conoces lo esencial. Puedes volver a ver este tutorial cuando quieras con el botón ❓ arriba a la derecha.",
+          en:"You now know the essentials. Watch this tutorial again anytime with the ❓ button, top-right."} },
+];
+
 /* body.on-lamina-a gates the hzCenter zone + #groupMenu (see CSS) so the row/column menu only
    exists while Lámina A is actually the visible slide — the slides are all stacked in the DOM
    at once (scroll-snap), so without this the hover zone would show over every slide. */
@@ -4559,6 +4862,13 @@ function finishBootstrap(){
   const [hashDeckId, hashIdx] = hash.split('/');
   if(DECKS[hashDeckId]){
     enterDeck(hashDeckId, parseInt(hashIdx, 10) || 0);
+  }
+
+  // First-ever visit (or an explicit localStorage reset): auto-launch the onboarding tour once
+  // Home has actually painted. A returning visitor who already saw or skipped it never gets it
+  // again automatically -- they can always replay it via the ❓ button in #topControls.
+  if(!localStorage.getItem(TUT_LS_KEY)){
+    setTimeout(startTutorial, 500);
   }
 }
 
