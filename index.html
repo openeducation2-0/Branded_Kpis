@@ -1287,6 +1287,11 @@ let LANG = 'es';
    month AND the brand/region change: "<Month> <Brand> <Region> YTD Monthly Branded KPIs". */
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+// mmm abbreviations for fmtYoyRange() (explicit ask, 2026-08-17: subtitle dates must lead with the
+// abbreviated month, never the full name) — Spanish months stay lowercase, matching MONTHS_ES's own
+// existing convention (unlike English, Spanish doesn't capitalize month names).
+const MONTHS_ABBR_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_ABBR_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const DAYS_EN = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const DAYS_ES = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 /* CORRECTED 2026-08-14: this used to be a literal hardcoded here, substituted by hand each time
@@ -3923,15 +3928,20 @@ function fmtDatePoint(iso){
    range.end, reusing range.start's month/year for both sides — silent garbage the moment a range
    crosses a month or year boundary (e.g. a shifted-weekday YOY compare for "1-31 jul 2026" lands on
    "2 jul - 1 ago 2025", which the old code rendered as the nonsensical "2-1 julio 2025"). Now
-   branches on whether start/end share a month and year. */
+   branches on whether start/end share a month and year.
+   Format fixed 2026-08-17 (explicit ask): month ALWAYS comes first, abbreviated (mmm), in BOTH
+   languages — "no primero los días y luego el mes", and Spanish must match English's own shape,
+   not spell the month out. Was `1-13 agosto 2026` (ES, days-first) vs `August 1-13, 2026` (EN,
+   month-first) — inconsistent with each other, and neither used the mmm abbreviation this now
+   uses for both: `Ago 1-13, 2026` / `Aug 1-13, 2026`. */
 function fmtYoyRange(range){
   const [sy,sm,sd] = range.start.split('-').map(Number);
   const [ey,em,ed] = range.end.split('-').map(Number);
-  const sMEs = MONTHS_ES[sm-1], sMEn = MONTHS_EN[sm-1];
-  const eMEs = MONTHS_ES[em-1], eMEn = MONTHS_EN[em-1];
-  if(sy===ey && sm===em) return {es:`${sd}-${ed} ${sMEs} ${sy}`, en:`${sMEn} ${sd}-${ed}, ${sy}`};
-  if(sy===ey) return {es:`${sd} ${sMEs} – ${ed} ${eMEs} ${sy}`, en:`${sMEn} ${sd} – ${eMEn} ${ed}, ${sy}`};
-  return {es:`${sd} ${sMEs} ${sy} – ${ed} ${eMEs} ${ey}`, en:`${sMEn} ${sd}, ${sy} – ${eMEn} ${ed}, ${ey}`};
+  const sMEs = MONTHS_ABBR_ES[sm-1], sMEn = MONTHS_ABBR_EN[sm-1];
+  const eMEs = MONTHS_ABBR_ES[em-1], eMEn = MONTHS_ABBR_EN[em-1];
+  if(sy===ey && sm===em) return {es:`${sMEs} ${sd}-${ed}, ${sy}`, en:`${sMEn} ${sd}-${ed}, ${sy}`};
+  if(sy===ey) return {es:`${sMEs} ${sd} – ${eMEs} ${ed}, ${sy}`, en:`${sMEn} ${sd} – ${eMEn} ${ed}, ${sy}`};
+  return {es:`${sMEs} ${sd}, ${sy} – ${eMEs} ${ed}, ${ey}`, en:`${sMEn} ${sd}, ${sy} – ${eMEn} ${ed}, ${ey}`};
 }
 function slideYoy(){
   const isBrazil = currentDeck().region === 'Brazil';
