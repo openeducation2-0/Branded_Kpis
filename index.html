@@ -3351,7 +3351,6 @@ document.getElementById('zoomIn').addEventListener('click', ()=>adjustZoom(ZOOM_
    underlying page is intentionally inert during the tour (full-page transparent blocker under the
    spotlight) -- this is a guided walkthrough, not hands-on practice; real interaction resumes the
    moment the tour closes. */
-const TUT_LS_KEY = 'brandedkpis_tutorial_seen_v1';
 let tutSteps = [];
 let tutIdx = 0;
 let tutActive = false;
@@ -3476,7 +3475,6 @@ function tutEnd(){
   tutActive = false;
   document.getElementById('tutorialOverlay').style.display = 'none';
   tutHideAllPanels();
-  localStorage.setItem(TUT_LS_KEY, '1');
 }
 function startTutorial(){
   if(document.body.classList.contains('deck-mode')) goHome(); // always starts from a known state
@@ -4864,12 +4862,11 @@ function finishBootstrap(){
     enterDeck(hashDeckId, parseInt(hashIdx, 10) || 0);
   }
 
-  // First-ever visit (or an explicit localStorage reset): auto-launch the onboarding tour once
-  // Home has actually painted. A returning visitor who already saw or skipped it never gets it
-  // again automatically -- they can always replay it via the ❓ button in #topControls.
-  if(!localStorage.getItem(TUT_LS_KEY)){
-    setTimeout(startTutorial, 500);
-  }
+  // Auto-launch the onboarding tour every single time, once Home has actually painted --
+  // explicit ask 2026-08-18: always start from scratch on login, the visitor decides each time
+  // whether to close it early, never an automatic "already seen it" skip. Manual replay via the
+  // ❓ button in #topControls still works too, for whenever someone wants it outside of login.
+  setTimeout(startTutorial, 500);
 }
 
 /* ================= LOGIN (Google Identity Services) ================= */
