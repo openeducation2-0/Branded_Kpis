@@ -3806,10 +3806,12 @@ function slideDaily(){
       case 'AvgPrice': return metricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
       case 'MarginPct': return metricCell(mncc(a), mncc(b), fmtPct, false, true);
       case 'NewCash': return metricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
-      // Costa Rica's OE Adult spend/volume is too thin for this ratio to mean anything reliable —
-      // forced gray "no signal" instead of a green/red that would just be small-sample noise
-      // (explicit ask, 2026-08-14; Junior's own Costa Rica investment is real, keeps real color).
-      case 'NewCashSemaphore': return mnccTemperatureCell(mncc(a), mncc(b), country==='Costa Rica' && !DATA.marketingOrgSplit);
+      // Costa Rica forced gray "no signal" in every deck/brand, not just OE Adult (widened
+      // 2026-08-17, explicit ask — the original 2026-08-14 ask only said "OE Adult", so Junior kept
+      // real color until now; the user has since confirmed the rule applies everywhere, so Junior's
+      // real Costa Rica investment is intentionally being suppressed here too, not just OE's thin/
+      // unreliable one).
+      case 'NewCashSemaphore': return mnccTemperatureCell(mncc(a), mncc(b), country==='Costa Rica');
       case 'Impact': { const v = impact(a,b); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
       case 'LtvShort': return `<div class="metric-cell muted"><div class="mc-actual">${fmtUSD(ltvShort(a))}</div></div>`;
       case 'FullUnitCmShort': return `<div class="metric-cell muted"><div class="mc-actual">${fmtUSD(fullUnitCmShort(a))}</div></div>`;
@@ -3999,8 +4001,9 @@ function slideYoy(){
       case 'AvgPrice': return yoyMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
       case 'MarginPct': return yoyMetricCell(mncc(a), mncc(b), fmtPct, false, true);
       case 'NewCash': return yoyMetricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
-      // Same Costa-Rica-OE gray override as Daily Tracker's dailyCellHtml — see its comment.
-      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactTemperaturePct(a,b), country==='Costa Rica' && !DATA.marketingOrgSplit);
+      // Same Costa Rica gray override as Daily Tracker's dailyCellHtml — see its comment (widened
+      // 2026-08-17 to every deck/brand, not just OE Adult).
+      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactTemperaturePct(a,b), country==='Costa Rica');
       // Net Impact reverted to the standard 2-value (actual/año anterior) + delta format here,
       // explicit ask 2026-08-11: "no veo ambos valores como se ve en Spend" — YoY-only revert (see
       // netImpactTemperaturePct's own comment for why this lámina, unlike Lámina A/Daily Tracker,
