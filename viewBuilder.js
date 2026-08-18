@@ -307,11 +307,15 @@ function computeYoyWindows(cutoffDate) {
   };
 }
 
-function mediaSpendByCountry(brandedTypeRows, startDate, endDate, isBrazilDeck) {
+// orgFilter (optional): when given, only sums rows whose marketing_organization matches -- used
+// by buildActualsByCountryMktOrg/buildYoyByCountryMktOrg (Junior decks' OE-Adult/OE-Junior
+// investment filter) to compute Media Spend on that same slice instead of the deck's total.
+function mediaSpendByCountry(brandedTypeRows, startDate, endDate, isBrazilDeck, orgFilter) {
   const out = {};
   for (const r of brandedTypeRows) {
     if (r.date < startDate || r.date > endDate) continue;
     if (r.type === 'SEM-Brand') continue;
+    if (orgFilter && r.marketing_organization !== orgFilter) continue;
     const c = bucketCountry(r.country, isBrazilDeck);
     if (c === null) continue;
     out[c] = (out[c] || 0) + (r.spend || 0);
@@ -319,12 +323,13 @@ function mediaSpendByCountry(brandedTypeRows, startDate, endDate, isBrazilDeck) 
   return out;
 }
 
-function paidOrganicSpendByCountry(dailyRows, startDate, endDate, isBrazilDeck) {
+function paidOrganicSpendByCountry(dailyRows, startDate, endDate, isBrazilDeck, orgFilter) {
   const out = {};
   for (const r of dailyRows) {
     if (r.date < startDate || r.date > endDate) continue;
     const chKey = CHANNEL_KEY_MAP[r.channel_grouping];
     if (chKey !== 'paidSocialASC' && chKey !== 'paidSocialNoASC') continue;
+    if (orgFilter && r.marketing_organization !== orgFilter) continue;
     const c = bucketCountry(r.country, isBrazilDeck);
     if (c === null) continue;
     out[c] = (out[c] || 0) + (r.spend || 0);
@@ -548,7 +553,7 @@ function buildMarketingOrgSplit(dailyRows, mktorgMonthlyRows, year, throughMonth
 
 const MKTORG_FILTER = { juniorOwn: 'Open English Junior', adultOnly: 'OE' };
 
-function buildActualsByCountryMktOrg(dailyRows, mktorgKpiRows, startDate, endDate, isBrazilDeck) {
+function buildActualsByCountryMktOrg(dailyRows, mktorgKpiRows, brandedTypeRows, startDate, endDate, isBrazilDeck) {
   const countries = isBrazilDeck ? ['Brazil'] : LATAM_COUNTRIES;
   const out = {};
   for (const orgKey in MKTORG_FILTER) {
@@ -571,13 +576,24 @@ function buildActualsByCountryMktOrg(dailyRows, mktorgKpiRows, startDate, endDat
       const b = byCountry[c] || (byCountry[c] = emptyTotals());
       addKpiRowInto(b, r);
     }
+    // Media Spend/Paid Social+Organic re-sliced onto this org's own rows (real bug fixed
+    // 2026-08-18: these 2 fields never existed on this function's output before, so filtering
+    // YoY/QOQ/MOM/WOW to "OE Junior" investment silently showed $0 for Media Spend even when the
+    // underlying org's own Brand TV spend was real).
+    const media = mediaSpendByCountry(brandedTypeRows, startDate, endDate, isBrazilDeck, orgValue);
+    const paidOrganic = paidOrganicSpendByCountry(dailyRows, startDate, endDate, isBrazilDeck, orgValue);
     out[orgKey] = {};
-    for (const c of countries) out[orgKey][c] = byCountry[c] || emptyTotals();
+    for (const c of countries) {
+      const row = byCountry[c] || emptyTotals();
+      row.MediaSpend = media[c] || 0;
+      row.PaidOrganicSpend = paidOrganic[c] || 0;
+      out[orgKey][c] = row;
+    }
   }
   return out;
 }
 
-function buildYoyByCountryMktOrg(dailyRows, mktorgKpiRows, cutoffDate, isBrazilDeck) {
+function buildYoyByCountryMktOrg(dailyRows, mktorgKpiRows, brandedTypeRows, cutoffDate, isBrazilDeck) {
   const { exactStart, exactEnd, shiftedStart, shiftedEnd } = computeYoyWindows(cutoffDate);
   const countries = isBrazilDeck ? ['Brazil'] : LATAM_COUNTRIES;
 
@@ -600,8 +616,16 @@ function buildYoyByCountryMktOrg(dailyRows, mktorgKpiRows, cutoffDate, isBrazilD
       const b = byCountry[c] || (byCountry[c] = emptyTotals());
       addKpiRowInto(b, r);
     }
+    // Same fix as buildActualsByCountryMktOrg — see its own comment.
+    const media = mediaSpendByCountry(brandedTypeRows, start, end, isBrazilDeck, orgValue);
+    const paidOrganic = paidOrganicSpendByCountry(dailyRows, start, end, isBrazilDeck, orgValue);
     const out = {};
-    for (const c of countries) out[c] = byCountry[c] || emptyTotals();
+    for (const c of countries) {
+      const row = byCountry[c] || emptyTotals();
+      row.MediaSpend = media[c] || 0;
+      row.PaidOrganicSpend = paidOrganic[c] || 0;
+      out[c] = row;
+    }
     return out;
   }
 
@@ -658,8 +682,8 @@ function buildDeckData(raw, deckId, cutoffDate) {
   }
   if (isJunior) {
     data.marketingOrgSplit = buildMarketingOrgSplit(raw.dailyRows, raw.mktorgMonthlyKpiRows, year, month);
-    data.actualsByCountryMktOrg = buildActualsByCountryMktOrg(raw.dailyRows, raw.mktorgKpiRows, monthStart, cutoffDate, isBrazilDeck);
-    data.yoyByCountryMktOrg = buildYoyByCountryMktOrg(raw.dailyRows, raw.mktorgKpiRows, cutoffDate, isBrazilDeck);
+    data.actualsByCountryMktOrg = buildActualsByCountryMktOrg(raw.dailyRows, raw.mktorgKpiRows, raw.brandedTypeRows, monthStart, cutoffDate, isBrazilDeck);
+    data.yoyByCountryMktOrg = buildYoyByCountryMktOrg(raw.dailyRows, raw.mktorgKpiRows, raw.brandedTypeRows, cutoffDate, isBrazilDeck);
     data.yoyDailyByMktOrg = buildYoyDailyByMktOrg(raw.dailyRows, isBrazilDeck);
   }
   return data;
