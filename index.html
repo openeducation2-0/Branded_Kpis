@@ -3930,13 +3930,15 @@ const COL_DEFS = [
   {key:'LtvShort', group:'cash', weight:.8},
   {key:'FullUnitCmShort', group:'cash', weight:.85, highlight:true},
   {key:'FullCmPctShort', group:'cash', weight:.85, highlight:true},
-  /* NewCashSemaphore + Impact are the last 2 columns, in that order, everywhere they appear
-     (Daily Tracker, YoY, Lámina A) — explicit ask 2026-08-18: "Columna de Net Impact a la derecha
-     de Net Impact Temperature" (Net Impact moved here from right after NewCash/MarginPct, its
-     original spot). Own `group` (not 'cash') so this pair also gets its own divider line, visually
-     setting it apart as "the semaphore + its number", not just one more cash-family metric. */
-  {key:'NewCashSemaphore', group:'semaphore', weight:.9},
+  /* Impact + NewCashSemaphore are the last 2 columns, in that order, everywhere they appear
+     (Daily Tracker, YoY, Lámina A) — explicit ask 2026-08-18, corrected same day: "Net Impact
+     Temperature es a la derecha de Net Impact" (Net Impact Temperature — the semaphore — reads as
+     the color-coded interpretation of the Net Impact number right before it, not the other way
+     around; an earlier reading of the same request had these swapped). Own `group` (not 'cash')
+     so this pair also gets its own divider line, visually setting it apart as "the number + its
+     semaphore", not just one more cash-family metric. */
   {key:'Impact', group:'semaphore', weight:.85, highlight:true},
+  {key:'NewCashSemaphore', group:'semaphore', weight:.9},
 ];
 /* Hero only ever shows the subset of COL_DEFS that make sense at company-total level (no
    %Leads/%Sales — those are a per-channel SHARE of the blended total, meaningless for Blended
