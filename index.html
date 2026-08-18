@@ -626,6 +626,9 @@ body.login-mode #zoomGroup{display:none;}
 .metric-cell .mc-delta{color:var(--text-primary);}
 .metric-cell .mc-delta.pos svg{color:var(--pos);}
 .metric-cell .mc-delta.neg svg{color:var(--neg);}
+/* Spend/Media Spend/Paid Social+Organic spend arrows -- neutral gray, never red/green (see
+   isSpendNeutralMetric()'s comment for why: an increase in spend isn't inherently good or bad). */
+.metric-cell .mc-delta.neutral svg{color:var(--text-secondary);}
 /* New Cash semaphore — a real traffic-light dot, no text/percentage inside it (the reader reads
    the % from New Cash Core's own column right next to it; this is a pure at-a-glance color cue,
    per explicit ask — never a literal emoji traffic light either). A soft radial highlight +
@@ -1017,6 +1020,11 @@ body.home-mode .zoom-pct{color:rgba(255,255,255,.85);}
    the other 2 columns were sized for. */
 .yoy-custom-range-col{flex:1.7;min-width:270px;}
 .daily-custom-range-col{flex:1.7;min-width:270px;}
+.dtr-week-row{display:flex;flex-wrap:wrap;gap:5px;padding:2px 10px 8px;}
+.dtr-week-btn{border:1px solid var(--border-soft);background:var(--bg-section);color:var(--text-secondary);
+  border-radius:var(--radius-full);padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s;}
+.dtr-week-btn.on{background:var(--brand-accent);color:#fff;border-color:var(--brand-accent);}
+.dtr-yesterday-btn{background:var(--bg-card);}
 .ycr-row{padding:4px 10px 0;font-size:12.5px;font-weight:600;color:var(--text-secondary);}
 .ycr-dates{display:flex;align-items:center;gap:6px;padding:2px 10px 8px;}
 .ycr-dates input[type=date]{font-size:12px;color:var(--text-primary);background:var(--bg-section);border:1px solid var(--border-soft);border-radius:var(--radius-md);padding:3px 5px;font-family:inherit;min-width:0;flex:1;}
@@ -1124,6 +1132,8 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mtc-stat.variance{border:1px solid var(--border-soft);}
 .mtc-stat.variance.pos{background:color-mix(in srgb, var(--pos) 12%, transparent);border-color:color-mix(in srgb, var(--pos) 30%, transparent);}
 .mtc-stat.variance.neg{background:color-mix(in srgb, var(--neg) 12%, transparent);border-color:color-mix(in srgb, var(--neg) 30%, transparent);}
+/* Spend's variance card here, same neutral treatment as the table/hero .mc-delta.neutral. */
+.mtc-stat.variance.neutral{background:color-mix(in srgb, var(--text-secondary) 12%, transparent);border-color:color-mix(in srgb, var(--text-secondary) 30%, transparent);}
 /* Item 7's grid modal (redesigned 2026-08-14, 2nd pass): metrics down as rows, OE Adult/OE
    Junior/Total across as columns, matching the layout the user described directly. */
 /* Fixed px tracks (not fr) so the label/OE-Adult/OE-Junior columns land at the EXACT same x
@@ -1176,8 +1186,10 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mtc-stat.variance .value{display:flex;align-items:center;gap:6px;font-size:var(--text-2xl);font-weight:700;}
 .mtc-stat.variance.pos .value{color:var(--pos);}
 .mtc-stat.variance.neg .value{color:var(--neg);}
+.mtc-stat.variance.neutral .value{color:var(--text-secondary);}
 .mtc-stat.variance.pos .icon-chip{background:color-mix(in srgb, var(--pos) 20%, transparent);color:var(--pos);}
 .mtc-stat.variance.neg .icon-chip{background:color-mix(in srgb, var(--neg) 20%, transparent);color:var(--neg);}
+.mtc-stat.variance.neutral .icon-chip{background:color-mix(in srgb, var(--text-secondary) 20%, transparent);color:var(--text-secondary);}
 .mtc-stat.variance .value small{font-size:16px;font-weight:600;opacity:.85;}
 
 .footnote{font-size:14px;color:var(--text-secondary);margin-top:var(--space-2);}
@@ -1547,12 +1559,13 @@ function computeDelta(av, bv, fmtFn, invert, isPP){
   const sub = `(${pctRounded>=0?'+':'-'}${pctStr})`;
   return {good, up, text: `${main} ${sub}`, main, sub};
 }
-function metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, budgetLabel, splitDelta){
+function metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, budgetLabel, splitDelta, forceGray){
   if(av==null) return `<div class="metric-cell"><div class="mc-actual">—</div></div>`;
   const d = computeDelta(av, bv, fmtFn, invert, isPP);
+  const colorCls = !d ? '' : forceGray ? 'neutral' : (d.good?'pos':'neg');
   const deltaHtml = !d ? '' : splitDelta
-    ? `<div class="mc-delta mc-delta-split ${d.good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(d.up)}${d.main}</div>${d.sub?`<div class="mc-delta-sub">${d.sub}</div>`:''}</div>`
-    : `<div class="mc-delta ${d.good?'pos':'neg'}">${arrowIcon(d.up)}${d.text}</div>`;
+    ? `<div class="mc-delta mc-delta-split ${colorCls}"><div class="mc-delta-main">${arrowIcon(d.up)}${d.main}</div>${d.sub?`<div class="mc-delta-sub">${d.sub}</div>`:''}</div>`
+    : `<div class="mc-delta ${colorCls}">${arrowIcon(d.up)}${d.text}</div>`;
   const actualCls = extraActualClass ? ` ${extraActualClass}` : '';
   return `<div class="metric-cell"><div class="mc-actual${actualCls}">${fmtFn(av)}</div><div class="mc-budget">${budgetLabel||'Bgt'} ${fmtFn(bv)}</div>${deltaHtml}</div>`;
 }
@@ -1585,8 +1598,8 @@ function yoyPriorLabel(){
    (same signature, just fixes the label) rather than threading a 7th argument through each of
    yoyCellHtml's ~11 cases. Deliberately does NOT pass splitDelta:true — see laminaAMetricCell()
    below, the only lámina that gets the 2-line split. */
-function yoyMetricCell(av, bv, fmtFn, invert, isPP, extraActualClass){
-  return metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, yoyPriorLabel());
+function yoyMetricCell(av, bv, fmtFn, invert, isPP, extraActualClass, forceGray){
+  return metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, yoyPriorLabel(), false, forceGray);
 }
 /* Lámina A ("...Pacing vs reforecast...") is the ONLY lámina whose delta splits the pp/%
    parenthetical onto its own line — explicit ask, 2026-08, later scoped down to just this
@@ -1609,7 +1622,7 @@ function monthIsComplete(){ return DATA.meta.asOfDay === DATA.meta.daysInMonth; 
    (spending slower than planned); for New Cash Core/Impacto, running ABOVE is good (earning
    faster than planned). Used by heroCell()/chCellHtml() only when !monthIsComplete() — once the
    month closes, these metrics go back to the normal metricCell() delta everywhere. */
-function pacingCell(av, bv, fmtFn, higherIsBetter){
+function pacingCell(av, bv, fmtFn, higherIsBetter, forceGray){
   if(av==null) return `<div class="metric-cell"><div class="mc-actual">—</div></div>`;
   const day = DATA.meta.asOfDay, days = DATA.meta.daysInMonth;
   const dayPacing = day/days;
@@ -1621,12 +1634,13 @@ function pacingCell(av, bv, fmtFn, higherIsBetter){
     // shown in "(±Y.Ypp)", not the raw ratio comparison, so a "-0.0pp" never renders red.
     const diffPPRounded = Math.round(diffPP*10)/10;
     const good = higherIsBetter ? diffPPRounded>=0 : diffPPRounded<=0;
+    const colorCls = forceGray ? 'neutral' : (good?'pos':'neg');
     // Arrow direction is the RAW sign of diffPP (pacing ahead vs behind), independent of
     // higherIsBetter -- same fix/reasoning as computeDelta()'s `up` vs `good` split, 2026-08-18.
     const up = diffPPRounded>=0;
     // Same main/sub split as computeDelta() — "Pacing XX%" and "(±Y.Ypp)" each get their own
     // line instead of competing for width on one, so both can render at a legible size.
-    pacingHtml = `<div class="mc-delta mc-delta-split ${good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(up)}${L('Pacing','Pacing')} ${(valuePacing*100).toFixed(0)}%</div><div class="mc-delta-sub">(${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div></div>`;
+    pacingHtml = `<div class="mc-delta mc-delta-split ${colorCls}"><div class="mc-delta-main">${arrowIcon(up)}${L('Pacing','Pacing')} ${(valuePacing*100).toFixed(0)}%</div><div class="mc-delta-sub">(${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div></div>`;
   }
   // "(mes completo)"/"(full month)" dropped 2026-08-14: redundant with the slide subtitle, which
   // already spells out "Budget: full month (...)" — repeating it in every single cell was real,
@@ -2033,11 +2047,19 @@ function sidebarHtml(idx, actualSeries, budgetSeries, tm, iconName, accent){
   const budgetLabel = isCurrent ? 'Budget' : `Budget — ${monthLabel}`;
   const varLabel = isCurrent ? L('Variación','Variance') : `${L('Variación','Variance')} — ${monthLabel}`;
   const d = computeDelta(av, bv, tm.fmt, tm.invert, tm.pp);
+  // Same up-vs-good split as computeDelta()'s own callers (metricCell/pacingCell) — the arrow's
+  // direction is the raw sign of change, never the invert-aware good/bad color (real bug, found
+  // 2026-08-18: this modal sidebar had been missed when that fix landed elsewhere). Spend/Media
+  // Spend/Paid Social+Organic also go gray here, same as every other Spend readout in the app.
+  const neutral = isSpendNeutralMetric(tm.key);
   const good = d ? d.good : true;
+  const up = d ? d.up : true;
+  const colorCls = !d ? '' : neutral ? 'neutral' : (good?'pos':'neg');
+  const iconColor = !d ? 'var(--text-secondary)' : neutral ? 'var(--text-secondary)' : (good?'var(--pos)':'var(--neg)');
   return `<div class="mtc-stat">${iconChip(iconName, accent, false, true)}<div><div class="label">${actualLabel}</div><div class="value">${tm.fmt(av)}</div></div></div>
     <div class="mtc-stat budget">${iconChip('wallet','var(--text-secondary)', false, true)}<div><div class="label">${budgetLabel}</div><div class="value">${tm.fmt(bv)}</div></div></div>
-    <div class="mtc-stat variance ${d?(good?'pos':'neg'):''}">${iconChip('trend', d?(good?'var(--pos)':'var(--neg)'):'var(--text-secondary)', false, true)}<div><div class="label">${varLabel}</div>
-      <div class="value">${d? `${arrowIcon(good)}${d.text}` : '—'}</div>
+    <div class="mtc-stat variance ${colorCls}">${iconChip('trend', iconColor, false, true)}<div><div class="label">${varLabel}</div>
+      <div class="value">${d? `${arrowIcon(up)}${d.text}` : '—'}</div>
     </div></div>`;
 }
 /* Cumulative/volume metrics (Spend/New Cash Core/Impacto/Leads/Ventas) get the pacing sidebar
@@ -2051,6 +2073,11 @@ function sidebarHtml(idx, actualSeries, budgetSeries, tm, iconName, accent){
    impact()'s new formula), there's no separate "full-period target" to prorate against; its own
    "budget" is definitionally 0 at any point in the month, prorated or not. */
 function isPacingMetric(key){ return key==='Spend' || key==='NewCash' || key==='Leads' || key==='Sales'; }
+/* Spend/Media Spend/Paid Social+Organic spend arrows render gray, never red/green -- explicit ask,
+   2026-08-18: an increase in spend isn't inherently good or bad (could be deliberate scaling), so
+   only efficiency/output metrics (CPL, CMPS, Leads, Sales, etc.) keep sign-based color. Used by
+   metricCell()/pacingCell()'s forceGray param wherever a render line is shared across metrics. */
+function isSpendNeutralMetric(key){ return key==='Spend' || key==='MediaSpend' || key==='PaidOrganicSpend'; }
 function sidebarOrPacingHtml(idx, actualSeries, budgetSeries, tm, iconName, accent){
   const isCurrent = idx === actualSeries.length-1;
   if(isCurrent && !monthIsComplete() && isPacingMetric(tm.key)){
@@ -2071,13 +2098,21 @@ function pacingSidebarHtml(actualSeries, budgetSeries, tm, iconName, accent){
   const higherIsBetter = tm.key!=='Spend';
   const valuePacing = (bv!=null && bv!==0 && av!=null) ? av/bv : null;
   const good = valuePacing==null ? true : (higherIsBetter ? valuePacing>=dayPacing : valuePacing<=dayPacing);
+  // Arrow direction is the raw sign of pacing-ahead-vs-behind, independent of higherIsBetter --
+  // same up-vs-good split as pacingCell()/computeDelta() (real bug, found 2026-08-18: this modal
+  // sidebar had been missed when that fix landed elsewhere). Spend also goes gray here, same as
+  // every other Spend readout in the app.
+  const up = valuePacing==null ? true : valuePacing>=dayPacing;
+  const neutral = isSpendNeutralMetric(tm.key);
+  const pacingColorCls = valuePacing==null ? '' : neutral ? 'neutral' : (good?'pos':'neg');
+  const pacingIconColor = valuePacing==null ? 'var(--text-secondary)' : neutral ? 'var(--text-secondary)' : (good?'var(--pos)':'var(--neg)');
   const diffPP = valuePacing==null ? null : (valuePacing-dayPacing)*100;
   const gap = (bv!=null && av!=null) ? bv-av : null;
   const perDay = (gap!=null && remaining>0) ? gap/remaining : null;
   const gapLabel = tm.key==='Spend' ? L('Presupuesto disponible','Budget headroom left') : L('Falta por generar','Still needed to hit budget');
   return `<div class="mtc-stat">${iconChip(iconName, accent, false, true)}<div><div class="label">${L('Actual (mes en curso)','Actual (current month)')}</div><div class="value">${tm.fmt(av)}</div></div></div>
-    <div class="mtc-stat ${valuePacing==null?'':(good?'pos':'neg')}">${iconChip('gauge', valuePacing==null?'var(--text-secondary)':(good?'var(--pos)':'var(--neg)'), false, true)}<div><div class="label">${L(`Pacing (día ${day} de ${days})`,`Pacing (day ${day} of ${days})`)}</div>
-      <div class="value" style="font-size:var(--text-2xl);font-weight:700">${valuePacing==null?'—':`${arrowIcon(good)}${(valuePacing*100).toFixed(0)}%`}</div>
+    <div class="mtc-stat ${pacingColorCls}">${iconChip('gauge', pacingIconColor, false, true)}<div><div class="label">${L(`Pacing (día ${day} de ${days})`,`Pacing (day ${day} of ${days})`)}</div>
+      <div class="value" style="font-size:var(--text-2xl);font-weight:700">${valuePacing==null?'—':`${arrowIcon(up)}${(valuePacing*100).toFixed(0)}%`}</div>
       ${valuePacing==null?'':`<div style="font-size:14px;color:var(--text-secondary);margin-top:2px">vs ${(dayPacing*100).toFixed(0)}% ${L('del mes','of month')} (${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div>`}
     </div></div>
     <div class="mtc-stat">${iconChip('wallet','var(--text-secondary)', false, true)}<div><div class="label">${gapLabel}</div>
@@ -2609,9 +2644,9 @@ function crossDeckBundle(deckId, countries){
    threading heroActual through just to satisfy branches that can't be reached here. */
 function mktOrgMetricCell(key, a, b){
   switch(key){
-    case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false);
-    case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false);
-    case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false);
+    case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false, null, true);
+    case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false, null, true);
+    case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false, null, true);
     case 'CPL': return yoyMetricCell(cpl(a), cpl(b), fmtUSD, true, false);
     case 'MediaCPL': return yoyMetricCell(mediaCpl(a), mediaCpl(b), fmtUSD, true, false);
     case 'Conversion': return yoyMetricCell(conversionRate(a), conversionRate(b), fmtPctConversion, false, true);
@@ -3890,17 +3925,18 @@ const COL_DEFS = [
   {key:'SalesShare', group:'sales', weight:.7},
   {key:'CMPS', group:'sales', weight:.7},
   {key:'AvgPrice', group:'sales', weight:.75},
-  {key:'MarginPct', group:'margin', weight:.8},
   {key:'NewCash', group:'cash', weight:.95, highlight:true},
-  {key:'Impact', group:'cash', weight:.85, highlight:true},
+  {key:'MarginPct', group:'cash', weight:.8},
   {key:'LtvShort', group:'cash', weight:.8},
   {key:'FullUnitCmShort', group:'cash', weight:.85, highlight:true},
   {key:'FullCmPctShort', group:'cash', weight:.85, highlight:true},
-  /* Always the LAST column, everywhere it appears (Daily Tracker, YoY, and now Lámina A too) —
-     explicit ask, never let a future column addition slot in after it. Own `group` (not 'cash')
-     so it also always gets its own divider line, visually setting it apart as "the semaphore",
-     not just one more cash-family metric. */
+  /* NewCashSemaphore + Impact are the last 2 columns, in that order, everywhere they appear
+     (Daily Tracker, YoY, Lámina A) — explicit ask 2026-08-18: "Columna de Net Impact a la derecha
+     de Net Impact Temperature" (Net Impact moved here from right after NewCash/MarginPct, its
+     original spot). Own `group` (not 'cash') so this pair also gets its own divider line, visually
+     setting it apart as "the semaphore + its number", not just one more cash-family metric. */
   {key:'NewCashSemaphore', group:'semaphore', weight:.9},
+  {key:'Impact', group:'semaphore', weight:.85, highlight:true},
 ];
 /* Hero only ever shows the subset of COL_DEFS that make sense at company-total level (no
    %Leads/%Sales — those are a per-channel SHARE of the blended total, meaningless for Blended
@@ -4012,20 +4048,20 @@ function slideA(){
       : h.muted
         ? `<div class="metric-cell muted"><div class="mc-actual${(c.key==='FullCmPctShort'||c.key==='Impact')?' '+mcPctSignClass(h.av):''}">${h.fmt(h.av)}</div></div>`
         : (!monthComplete && isPacingMetric(c.key))
-          ? pacingCell(h.av, h.bv, h.fmt, c.key!=='Spend')
+          ? pacingCell(h.av, h.bv, h.fmt, c.key!=='Spend', isSpendNeutralMetric(c.key))
           // Month complete + a pacing metric: pacing itself no longer means anything (100% is a
           // given at month-end) -- explicit ask, 2026-08-14: plain % diff, same single-line
           // format YoY uses (metricCell with no splitDelta), not Lámina A's own usual 2-line
           // split (laminaAMetricCell) which every OTHER metric here keeps unconditionally.
           : monthComplete && isPacingMetric(c.key)
-            ? metricCell(h.av, h.bv, h.fmt, h.invert, h.pp)
+            ? metricCell(h.av, h.bv, h.fmt, h.invert, h.pp, null, null, false, isSpendNeutralMetric(c.key))
             : laminaAMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp);
     return `<div class="bh-kpi${h.highlight?' highlight':''}${h.muted||h.semaphore?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
   }).join('');
 
   function chCellHtml(key, a, b){
     switch(key){
-      case 'Spend': return monthComplete ? metricCell(a.Spend, b.Spend, fmtUSD, true, false) : pacingCell(a.Spend, b.Spend, fmtUSD, false);
+      case 'Spend': return monthComplete ? metricCell(a.Spend, b.Spend, fmtUSD, true, false, null, null, false, true) : pacingCell(a.Spend, b.Spend, fmtUSD, false, true);
       case 'SpendShare': { const s = bl.Spend ? a.Spend/bl.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
       case 'Leads': return monthComplete ? metricCell(a.Leads, b.Leads, fmtNum, false, false) : pacingCell(a.Leads, b.Leads, fmtNum, true);
       case 'Sales': return monthComplete ? metricCell(a.Sales, b.Sales, fmtNum, false, false) : pacingCell(a.Sales, b.Sales, fmtNum, true);
@@ -4087,7 +4123,7 @@ function slideA(){
         <div class="bh-head"><span class="bh-badge">Blended</span><span class="bh-sub">${L('Total empresa · todos los channel groupings','Company total · all channel groupings')}</span>${targetPacingChip}</div>
         <div class="bh-kpis" style="grid-template-columns:${heroCols.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpis}</div>
       </div>
-      <div class="detail-label"><span>${L('Detalle por Channel Grouping','Detail by Channel Grouping')}</span><span class="detail-label-line"></span>${targetPacingChip}</div>
+      <div class="detail-label"><span>${L('Detalle por Channel Grouping','Detail by Channel Grouping')}</span><span class="detail-label-line"></span></div>
       <div class="channel-table">
         <div class="ch-header-row" style="grid-template-columns:${chGridTemplate}"><div></div>${headerCells}</div>
         ${rows}
@@ -4143,16 +4179,16 @@ function slideDaily(){
   const countries = isBrazil ? ['Brazil'] : (showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER, 'Brazil'] : DAILY_TRACKER_ROW_ORDER);
   const emptyActual = {Spend:0,Leads:0,Sales:0,NewCash:0,FullCM:0,ProjRevShort:0,TotalEnrollments:0};
   const emptyBudget = {Spend:0,Leads:0,Sales:0,NewCash:0};
-  // Custom date range (explicit ask 2026-08-18) — re-aggregates the SAME raw per-day rows the
-  // MTD numbers above already come from, just over whatever [start,end] is active instead of the
-  // fixed month-to-date window. See dailyTrackerRangeActuals/Budget's own comment for why no new
-  // backend/export work was needed for this.
-  const rangeActive = dailyCustomRange.enabled;
-  const activeRange = rangeActive ? dailyActiveRange() : null;
-  const rangeActuals = rangeActive ? dailyTrackerRangeActuals(DECK_ID, activeRange.start, activeRange.end) : null;
-  const rangeBudget = rangeActive ? dailyTrackerRangeBudget(DECK_ID, activeRange.start, activeRange.end) : null;
-  const rangeActualsBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeActuals('OE-BR', activeRange.start, activeRange.end) : null;
-  const rangeBudgetBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeBudget('OE-BR', activeRange.start, activeRange.end) : null;
+  // Custom date range (explicit ask 2026-08-18, redesigned same day) — re-aggregates the SAME raw
+  // per-day rows the MTD numbers above already come from, just over whatever date Set is active
+  // instead of the fixed month-to-date window. See dailyTrackerRangeActuals/Budget's own comment
+  // for why no new backend/export work was needed for this.
+  const rangeActive = dailyCustomRangeActive();
+  const activeDateSet = rangeActive ? dailyIncludedDateSet() : null;
+  const rangeActuals = rangeActive ? dailyTrackerRangeActuals(DECK_ID, activeDateSet) : null;
+  const rangeBudget = rangeActive ? dailyTrackerRangeBudget(DECK_ID, activeDateSet) : null;
+  const rangeActualsBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeActuals('OE-BR', activeDateSet) : null;
+  const rangeBudgetBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeBudget('OE-BR', activeDateSet) : null;
   const actualFor = c => {
     if(isBrazil) return rangeActive ? (rangeActuals['Brazil']||emptyActual) : DATA.actuals.branded.total;
     if(c==='Brazil') return rangeActive ? (rangeActualsBR['Brazil']||emptyActual) : DATA_BY_DECK['OE-BR'].actuals.branded.total;
@@ -4174,7 +4210,7 @@ function slideDaily(){
 
   function dailyCellHtml(key, a, b, country){
     switch(key){
-      case 'Spend': return metricCell(a.Spend, b.Spend, fmtUSD, true, false);
+      case 'Spend': return metricCell(a.Spend, b.Spend, fmtUSD, true, false, null, null, false, true);
       case 'SpendShare': { const s = heroActual.Spend ? a.Spend/heroActual.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
       case 'Leads': return metricCell(a.Leads, b.Leads, fmtNum, false, false);
       case 'Sales': return metricCell(a.Sales, b.Sales, fmtNum, false, false);
@@ -4220,7 +4256,7 @@ function slideDaily(){
     const h = heroCellDaily(c.key);
     const cell = h.semaphore
       ? mnccTemperatureCell(h.av, h.bv)
-      : h.muted ? `<div class="metric-cell muted"><div class="mc-actual${(c.key==='FullCmPctShort'||c.key==='Impact')?' '+mcPctSignClass(h.av):''}">${h.fmt(h.av)}</div></div>` : metricCell(h.av,h.bv,h.fmt,h.invert,h.pp);
+      : h.muted ? `<div class="metric-cell muted"><div class="mc-actual${(c.key==='FullCmPctShort'||c.key==='Impact')?' '+mcPctSignClass(h.av):''}">${h.fmt(h.av)}</div></div>` : metricCell(h.av,h.bv,h.fmt,h.invert,h.pp,null,null,false,isSpendNeutralMetric(c.key));
     return `<div class="bh-kpi${h.highlight?' highlight':''}${h.muted||h.semaphore?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
   }).join('');
   function countryRow(c){
@@ -4281,11 +4317,21 @@ function slideDaily(){
   return `<section class="slide slide-daily${isBrazil?' slide-daily-br':''}${dailyValueVis.hideActual?' hide-actual-value':''}${dailyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('daily')}"><div class="slide-inner">
     ${(() => {
       const rawLink = (label) => `<a class="raw-source-link" href="https://drive.google.com/drive/folders/1OfX-a7mMdtkegYZAJs1T3KvRfy6LkP86" target="_blank" rel="noopener">${label}</a>`;
-      // Custom range active (explicit ask 2026-08-18): show the actual [start,end] instead of the
-      // fixed "acumulado al {asOfDay}" MTD phrasing -- same mm/dd-first abbreviated format already
-      // used everywhere else a date range needs a compact subtitle (fmtYoyRange).
-      const periodEs = rangeActive ? fmtYoyRange(activeRange).es : `acumulado al ${dday} de ${MONTHS_ES[dm-1]} de ${dy}`;
-      const periodEn = rangeActive ? fmtYoyRange(activeRange).en : `accumulated through ${MONTHS_EN[dm-1]} ${dday}, ${dy}`;
+      // Custom selection active (explicit ask 2026-08-18, redesigned same day into a week
+      // multi-select + weekday filter): the selection can be a scattered set of days now, not
+      // just one contiguous range, so the subtitle states a day COUNT plus the overall span
+      // (fmtYoyRange on the min/max dates actually in the set) rather than trying to spell out
+      // every included day.
+      let periodEs, periodEn;
+      if(rangeActive){
+        const sorted = [...activeDateSet].sort();
+        const span = sorted.length ? fmtYoyRange({start:sorted[0], end:sorted[sorted.length-1]}) : {es:'—',en:'—'};
+        periodEs = `${sorted.length} ${L('días seleccionados','days selected')} (${span.es})`;
+        periodEn = `${sorted.length} days selected (${span.en})`;
+      }else{
+        periodEs = `acumulado al ${dday} de ${MONTHS_ES[dm-1]} de ${dy}`;
+        periodEn = `accumulated through ${MONTHS_EN[dm-1]} ${dday}, ${dy}`;
+      }
       return headerBlock('s-daily', 'MTD Branded KPIs vs Forecast By Country', 'MTD Branded KPIs vs Forecast By Country',
         `${deckLabel} · Actual vs Daily Tracker ${periodEs} · ${rawLink('ver carpeta de origen')}`,
         `${deckLabel} · Actual vs Daily Tracker ${periodEn} · ${rawLink('view source folder')}`);
@@ -4368,15 +4414,23 @@ function slideYoy(){
   const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
   const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
 
-  const heroColsYoy = HERO_COL_DEFS.filter(c=> yoyView.cols[c.key]);
+  // Brazil has no per-country table below the hero (single aggregated row, see .single-hero) --
+  // its hero IS the only display surface, so Media Spend/Media CPL/Paid Social+Organic (normally
+  // table-only, see YOY_COL_DEFS's own comment) must be reachable there too, or toggling them on
+  // silently does nothing for OE-BR/JR-BR (real bug reported 2026-08-18: "por que selecciono Media
+  // Spend y no aparece esa columna en algunas regiones y marcas" -- Brazil was the "algunas
+  // regiones", not a data or rendering bug). Still excludes the 3 Share metrics (%Leads/%Sales/
+  // %Spend) for the same reason HERO_COL_DEFS itself excludes them -- a share of Brazil's own
+  // single total is meaningless.
+  const heroColsYoy = (isBrazil ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare') : HERO_COL_DEFS).filter(c=> yoyView.cols[c.key]);
   const yCols = YOY_COL_DEFS.filter(c=> yoyView.cols[c.key]);
   const yGridTemplate = `1.25fr ${yCols.map(c=>c.weight+'fr').join(' ')}`;
 
   function yoyCellHtml(key, a, b, country){
     switch(key){
-      case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false);
+      case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false, null, true);
       // Media Spend/CPL/Paid+Organic spend: YoY-exclusive, see YOY_COL_DEFS's own comment for why.
-      case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false);
+      case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false, null, true);
       case 'SpendShare': { const s = heroActual.Spend ? a.Spend/heroActual.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
       case 'Leads': return yoyMetricCell(a.Leads, b.Leads, fmtNum, false, false);
       case 'Sales': return yoyMetricCell(a.Sales, b.Sales, fmtNum, false, false);
@@ -4405,15 +4459,20 @@ function slideYoy(){
       case 'LtvShort': return yoyMetricCell(ltvShort(a), ltvShort(b), fmtUSD, false, false);
       case 'FullUnitCmShort': return yoyMetricCell(fullUnitCmShort(a), fullUnitCmShort(b), fmtUSD, false, false);
       case 'FullCmPctShort': return yoyMetricCell(fullCmPct(a), fullCmPct(b), fmtPct, false, true, mcPctSignClass(fullCmPct(a)));
-      case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false);
+      case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false, null, true);
     }
   }
   function heroCellYoy(key){
     switch(key){
       case 'Spend': return {icon:'wallet', label:'Spend', av:heroActual.Spend, bv:heroYoy.Spend, fmt:fmtUSD, invert:true, pp:false};
+      // Media Spend/CPL/Paid+Organic: only reachable here for Brazil (see heroColsYoy's own
+      // comment) -- same formulas as yoyCellHtml's table cases, just fed by heroActual/heroYoy.
+      case 'MediaSpend': return {icon:'wallet', label:'Media Spend', av:heroActual.MediaSpend, bv:heroYoy.MediaSpend, fmt:fmtUSD, invert:true, pp:false};
+      case 'PaidOrganicSpend': return {icon:'wallet', label:L('Paid Social + Organic','Paid Social + Organic'), av:heroActual.PaidOrganicSpend, bv:heroYoy.PaidOrganicSpend, fmt:fmtUSD, invert:false, pp:false};
       case 'Leads': return {icon:'gauge', label:'Leads', av:heroActual.Leads, bv:heroYoy.Leads, fmt:fmtNum, invert:false, pp:false};
       case 'Sales': return {icon:'tag', label:L('Ventas','Sales'), av:heroActual.Sales, bv:heroYoy.Sales, fmt:fmtNum, invert:false, pp:false};
       case 'CPL': return {icon:'gauge', label:'CPL', av:cpl(heroActual), bv:cpl(heroYoy), fmt:fmtUSD, invert:true, pp:false};
+      case 'MediaCPL': return {icon:'gauge', label:'Media CPL', av:mediaCpl(heroActual), bv:mediaCpl(heroYoy), fmt:fmtUSD, invert:true, pp:false};
       case 'Conversion': return {icon:'trend', label:L('Conversión','Conversion'), av:conversionRate(heroActual), bv:conversionRate(heroYoy), fmt:fmtPctConversion, invert:false, pp:true};
       case 'CMPS': return {icon:'tag', label:'CMPS', av:cmps(heroActual), bv:cmps(heroYoy), fmt:fmtUSD, invert:true, pp:false};
       case 'AvgPrice': return {icon:'tag', label:L('Precio Prom.','Avg Price'), av:avgPrice(heroActual), bv:avgPrice(heroYoy), fmt:fmtUSD, invert:false, pp:false};
@@ -4438,7 +4497,7 @@ function slideYoy(){
       ? netImpactTemperatureCell(h.av)
       : h.muted
         ? `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(h.av)}">${h.fmt(h.av)}</div></div>`
-        : yoyMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp,signCls);
+        : yoyMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp,signCls,isSpendNeutralMetric(c.key));
     return `<div class="bh-kpi${h.highlight?' highlight':''}${h.semaphore||h.muted?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
   }).join('');
   /* Item 7's trigger (explicit ask, 2nd pass, 2026-08-14): click the COUNTRY NAME, not a metric —
@@ -4554,7 +4613,7 @@ function slideYoy(){
         <div class="ch-header-row" style="grid-template-columns:${yGridTemplate}"><div></div>${headerCellsYoy}</div>
         ${rowsHtmlYoy}
       </div>`;
-  return `<section class="slide slide-daily slide-yoy${isBrazil?' slide-daily-br':''}${yoyValueVis.hideActual?' hide-actual-value':''}${yoyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('yoy')}"><div class="slide-inner">
+  return `<section class="slide slide-yoy${isBrazil?' slide-daily-br':''}${yoyValueVis.hideActual?' hide-actual-value':''}${yoyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('yoy')}"><div class="slide-inner">
     ${headerBlock('s-yoy', `${yoyCatShort} Branded Channels KPIs`, `${yoyCatShort} Branded Channels KPIs`, yoySubtitleEs, yoySubtitleEn)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlYoy}
     </div>
@@ -4671,14 +4730,20 @@ function resetLaminaAFilters(){
   renderGroupMenu();
 }
 /* ================= DAILY TRACKER CUSTOM DATE RANGE ================= */
-/* Added 2026-08-18 (explicit ask): Daily Tracker only ever showed month-to-date. No new
-   backend/export work needed -- this re-aggregates the SAME per-day raw rows already sitting in
-   _rawByDeckCache (dailyRows/channelKpiRows for actuals, dailyTrackerBudgetRows for budget) over
-   an arbitrary [start,end], exactly like aggregateYoyDaily() does for YoY's own custom range,
-   just Branded-only (the only channel Daily Tracker ever shows) and pulling budget too (YoY has
-   no budget side, it compares against last year's actual instead). */
-const LS_DAILY_CUSTOM_RANGE = 'brandedkpis_daily_customrange_v1';
-let dailyCustomRange = { enabled: false, start: null, end: null };
+/* REDESIGNED 2026-08-18 (2nd pass, explicit ask after the 1st version shipped): the 1st version
+   was a single [start,end] range behind an "activate" checkbox, hidden by default -- confusing
+   ("no entiendo lo del rango del rango") and missing what was actually asked for: a WEEK per
+   button, MULTI-selectable (pick week 1 AND week 3), each clipped to the current month (week 1 of
+   August might calendar-wise start in late July, but only its August days count here), PLUS a
+   Monday-Sunday weekday filter that narrows WHATEVER weeks are picked (e.g. weeks 1+3, Mondays
+   only). No enable checkbox anymore -- the panel is always live; with nothing touched it's
+   exactly month-to-date (identical to before this feature existed), so there's no "off" state
+   distinct from the everyday default. No new backend/export work needed -- reaggregates the same
+   per-day raw rows already sitting in _rawByDeckCache, exactly like aggregateYoyDaily() does for
+   YoY's own custom range, just Branded-only (the only channel Daily Tracker shows) and pulling
+   budget too (YoY compares against last year's actual instead of a budget). */
+const LS_DAILY_CUSTOM_RANGE = 'brandedkpis_daily_customrange_v2';
+let dailyCustomRange = { days: null, weekdays: null }; // days: null=month-to-date default, else an explicit array of ISO dates. weekdays: null=every day, else an array of 0-6 (Sun-Sat) narrowing whatever `days` resolves to.
 (function loadDailyCustomRange(){
   try{
     const saved = JSON.parse(localStorage.getItem(LS_DAILY_CUSTOM_RANGE)||'null');
@@ -4686,36 +4751,97 @@ let dailyCustomRange = { enabled: false, start: null, end: null };
   }catch(e){}
 })();
 function saveDailyCustomRange(){ localStorage.setItem(LS_DAILY_CUSTOM_RANGE, JSON.stringify(dailyCustomRange)); }
+function dailyCustomRangeActive(){ return !!(dailyCustomRange.days || dailyCustomRange.weekdays); }
 function dailyCutoffISO(){ return `${DATA.meta.month}-${String(DATA.meta.asOfDay).padStart(2,'0')}`; }
-function dailyDefaultRange(){ return { start: DATA.meta.month+'-01', end: dailyCutoffISO() }; }
-function dailyActiveRange(){
-  const def = dailyDefaultRange();
-  return { start: dailyCustomRange.start||def.start, end: dailyCustomRange.end||def.end };
-}
-/* Monday of the week containing cutoff, through cutoff itself — a still-open week naturally clips
-   to today's weekday, never reaching into days that haven't happened yet ("considerando semana
-   parcial"). Same Monday-math as yoyDefaultActualRange()'s WOW branch — see its own 2026-08-18
-   comment for why the range's END is cutoff itself, not cutoff-1: the daily refresh pipeline
-   never lets cutoff be an in-progress day, so cutoff already IS "yesterday"/the last complete day. */
-function dailyThisWeekRange(){
-  const cutoff = dailyCutoffISO();
-  const dow = parseISODate(cutoff).getDay();
-  const sinceMonday = (dow+6)%7;
-  return { start: addDaysISO(cutoff, -sinceMonday), end: cutoff };
-}
-function dailyYesterdayRange(){ const c = dailyCutoffISO(); return { start: c, end: c }; }
 function fmtMMDD(iso){ const [,m,d] = iso.split('-'); return `${m}/${d}`; }
-/* Branded-only, arbitrary [start,end], per country — reuses the exact same field names/helpers
+/* The month's calendar weeks (Monday-first), each clipped to [month start, cutoff] -- explicit
+   ask + worked example, 2026-08-18: "la primera semana era del 27 de julio al 2 de agosto, pero
+   claramente se pondría solo del uno de agosto al dos de agosto... la cuarta sería diecisiete
+   solo". Traced against that exact example (cutoff=2026-08-17, a Monday) and it reproduces all 4
+   weeks verbatim: [Aug1-2, Aug3-9, Aug10-16, Aug17]. A still-open final week naturally clips to
+   cutoff, same reasoning as dailyThisWeekRange() before this rewrite / yoyDefaultActualRange()'s
+   WOW branch. */
+function dailyMonthWeeks(){
+  const monthStart = DATA.meta.month+'-01';
+  const cutoff = dailyCutoffISO();
+  const weeks = [];
+  let cur = monthStart;
+  while(cur<=cutoff){
+    const dow = parseISODate(cur).getDay();
+    const sinceMonday = (dow+6)%7;
+    const rawStart = addDaysISO(cur,-sinceMonday);
+    const rawEnd = addDaysISO(rawStart,6);
+    const start = rawStart<monthStart ? monthStart : rawStart;
+    const end = rawEnd>cutoff ? cutoff : rawEnd;
+    weeks.push({start,end});
+    cur = addDaysISO(end,1);
+  }
+  return weeks;
+}
+function dailyDaysInRange(startISO,endISO){
+  const out=[]; let d=startISO; while(d<=endISO){ out.push(d); d=addDaysISO(d,1); } return out;
+}
+/* Materializes `dailyCustomRange.days` into a Set -- when it's still null (nothing touched yet),
+   that means "every day from month start through cutoff", the same month-to-date window this
+   lámina always showed before this feature existed. */
+function dailyEffectiveDaySet(){
+  if(dailyCustomRange.days) return new Set(dailyCustomRange.days);
+  return new Set(dailyDaysInRange(DATA.meta.month+'-01', dailyCutoffISO()));
+}
+/* The actual dates to aggregate: dailyEffectiveDaySet() narrowed by the weekday filter, if any. */
+function dailyIncludedDateSet(){
+  const base = dailyEffectiveDaySet();
+  if(!dailyCustomRange.weekdays) return base;
+  const wd = new Set(dailyCustomRange.weekdays);
+  return new Set([...base].filter(d=>wd.has(parseISODate(d).getDay())));
+}
+function dailyToggleWeek(idx){
+  const w = dailyMonthWeeks()[idx]; if(!w) return;
+  const days = dailyDaysInRange(w.start,w.end);
+  // Start from the EXPLICIT selection only (never dailyEffectiveDaySet()'s materialized "whole
+  // month" default) -- otherwise the very first click reads as "this week's days are already in
+  // (since everything is, by default), so turn them OFF", which inverts the intended additive
+  // multi-select: it silently selects the whole month MINUS one week instead of just that week.
+  // Real bug, found 2026-08-18 via a hero-total mismatch ($81,010 rendered vs $70,040 expected).
+  const current = new Set(dailyCustomRange.days || []);
+  const allIn = days.length>0 && days.every(d=>current.has(d));
+  days.forEach(d=> allIn ? current.delete(d) : current.add(d));
+  dailyCustomRange.days = current.size ? [...current] : null;
+  saveDailyCustomRange();
+  renderGroupMenuDaily();
+  refreshSlideDaily();
+}
+function dailyToggleDay(iso){
+  const current = new Set(dailyCustomRange.days || []);
+  if(current.has(iso)) current.delete(iso); else current.add(iso);
+  dailyCustomRange.days = current.size ? [...current] : null;
+  saveDailyCustomRange();
+  renderGroupMenuDaily();
+  refreshSlideDaily();
+}
+function dailyToggleWeekday(d){
+  // Same additive-from-empty model as dailyToggleWeek -- build an INCLUSIVE filter starting from
+  // nothing, not an exclusive one starting from "all 7 days".
+  const current = new Set(dailyCustomRange.weekdays || []);
+  current.has(d) ? current.delete(d) : current.add(d);
+  // Full 7-day selection is the same as "no filter" -- store null so a returning visit doesn't
+  // show 7 pills lit up for what's really just "no weekday filter applied".
+  dailyCustomRange.weekdays = (current.size && current.size<7) ? [...current] : null;
+  saveDailyCustomRange();
+  renderGroupMenuDaily();
+  refreshSlideDaily();
+}
+/* Branded-only, arbitrary date Set, per country — reuses the exact same field names/helpers
    buildActuals() in viewBuilder.js already uses (addDailyRowInto/addKpiRowInto/bucketCountry/
    emptyTotals — all top-level in that file, loaded before this script runs), so this can never
    silently drift from how the "real" MTD numbers get computed. */
-function dailyTrackerRangeActuals(deckId, startISO, endISO){
+function dailyTrackerRangeActuals(deckId, dateSet){
   const cache = _rawByDeckCache[deckId];
   const isBrazilDeck = DECKS[deckId].region === 'Brazil';
   const byCountry = {};
   const addRows = (rows, adder) => {
     for(const r of rows){
-      if(r.date<startISO || r.date>endISO) continue;
+      if(!dateSet.has(r.date)) continue;
       if(r.channel_grouping !== 'Brand TV Channels') continue;
       const country = bucketCountry(r.country, isBrazilDeck);
       if(country===null) continue;
@@ -4727,71 +4853,54 @@ function dailyTrackerRangeActuals(deckId, startISO, endISO){
   addRows(cache.channelKpiRows, addKpiRowInto);
   return byCountry;
 }
-function dailyTrackerRangeBudget(deckId, startISO, endISO){
+function dailyTrackerRangeBudget(deckId, dateSet){
   const byCountry = {};
   for(const r of _rawByDeckCache[deckId].dailyTrackerBudgetRows){
-    if(r.date<startISO || r.date>endISO) continue;
+    if(!dateSet.has(r.date)) continue;
     const b = byCountry[r.country] || (byCountry[r.country] = {Spend:0,Leads:0,Sales:0,NewCash:0});
     b.Spend += r.spend||0; b.Leads += r.leads||0; b.Sales += r.sales||0; b.NewCash += r.newCashCore||0;
   }
   return byCountry;
 }
-function dailyCustomRangePanelHtml(){
-  const {start, end} = dailyActiveRange();
-  const weekR = dailyThisWeekRange();
-  return `<div class="side-menu-header">${L('Rango de fechas','Date range')}</div>
-    <label><input type="checkbox" id="dailyCustomRangeToggle" ${dailyCustomRange.enabled?'checked':''}> ${L('Activar rango personalizado','Enable custom range')}</label>
-    <div class="ycr-body" id="dcrBody" style="${dailyCustomRange.enabled?'':'display:none'}">
-      <div class="ycr-dates"><input type="date" id="dailyRangeStart" value="${start}" max="${dailyCutoffISO()}"><span>→</span><input type="date" id="dailyRangeEnd" value="${end}" max="${dailyCutoffISO()}"></div>
-      <div class="ycr-compare-modes">
-        <button type="button" id="dailyQuickWeek">${L('Esta semana','This week')} (${fmtMMDD(weekR.start)} ${L('a','to')} ${fmtMMDD(weekR.end)})</button>
-        <button type="button" id="dailyQuickYesterday">${L('Ayer','Yesterday')}</button>
-      </div>
-    </div>`;
+function dailyWeekdaySelectorHtml(){
+  const labels = {0:L('Dom','Sun'),1:L('Lun','Mon'),2:L('Mar','Tue'),3:L('Mié','Wed'),4:L('Jue','Thu'),5:L('Vie','Fri'),6:L('Sáb','Sat')};
+  // Empty (not all-7) when nothing's explicitly chosen -- matches the additive-from-empty model:
+  // no pill is "on" until the user actually picks one, since a click ADDS to an inclusive filter.
+  const selected = new Set(dailyCustomRange.weekdays || []);
+  return `<div class="weekday-selector" id="dailyWeekdaySelector">
+    ${WD_VISUAL_ORDER.map(d=>`<button type="button" class="wd-btn${selected.has(d)?' on':''}" data-dwd="${d}">${labels[d]}</button>`).join('')}
+  </div>`;
 }
-/* Same "never rewrite the input the visitor is actively typing in" discipline as
-   syncYcrDateInputs() — see its own comment for the native <input type=date> bug this avoids. */
-function syncDcrDateInputs(skipId){
-  const active = dailyActiveRange();
-  const s = document.getElementById('dailyRangeStart'), e = document.getElementById('dailyRangeEnd');
-  if(s && s.id!==skipId) s.value = active.start;
-  if(e && e.id!==skipId) e.value = active.end;
+function dailyCustomRangePanelHtml(){
+  const weeks = dailyMonthWeeks();
+  // Explicit selection only (not dailyEffectiveDaySet()'s materialized whole-month default) --
+  // no week/day pill should show "on" until the user actually clicks one.
+  const explicitDays = dailyCustomRange.days ? new Set(dailyCustomRange.days) : null;
+  const cutoff = dailyCutoffISO();
+  const weekBtns = weeks.map((w,i)=>{
+    const days = dailyDaysInRange(w.start,w.end);
+    const on = !!explicitDays && days.every(d=>explicitDays.has(d));
+    const label = w.start===w.end ? fmtMMDD(w.start) : `${fmtMMDD(w.start)}-${fmtMMDD(w.end)}`;
+    return `<button type="button" class="dtr-week-btn${on?' on':''}" data-week-idx="${i}">${L('Sem.','Wk')} ${i+1} (${label})</button>`;
+  }).join('');
+  const yesterdayOn = !!explicitDays && explicitDays.has(cutoff);
+  return `<div class="side-menu-header">${L('Rango de fechas','Date range')}</div>
+    <div class="dtr-week-row">
+      ${weekBtns}
+      <button type="button" class="dtr-week-btn dtr-yesterday-btn${yesterdayOn?' on':''}" data-day="${cutoff}">${L('Ayer','Yesterday')}</button>
+    </div>
+    <div class="side-menu-header" style="margin-top:8px">${L('Filtrar por día de semana','Filter by weekday')}</div>
+    ${dailyWeekdaySelectorHtml()}`;
 }
 function wireDailyCustomRangePanel(menu){
   const col = menu.querySelector('.daily-custom-range-col');
   if(!col) return;
-  const afterChange = (skipId) => { saveDailyCustomRange(); syncDcrDateInputs(skipId); refreshSlideDaily(); };
-  document.getElementById('dailyCustomRangeToggle')?.addEventListener('change', e=>{
-    dailyCustomRange.enabled = e.target.checked;
-    const body = document.getElementById('dcrBody');
-    if(body) body.style.display = e.target.checked ? '' : 'none';
-    saveDailyCustomRange();
-    refreshSlideDaily();
+  col.querySelectorAll('.dtr-week-btn[data-week-idx]').forEach(btn=>{
+    btn.addEventListener('click', ()=> dailyToggleWeek(Number(btn.dataset.weekIdx)));
   });
-  document.getElementById('dailyRangeStart')?.addEventListener('change', e=>{
-    dailyCustomRange.start = e.target.value || null;
-    afterChange(e.target.id);
-  });
-  document.getElementById('dailyRangeEnd')?.addEventListener('change', e=>{
-    dailyCustomRange.end = e.target.value || null;
-    afterChange(e.target.id);
-  });
-  // Quick buttons re-render the whole menu (not just afterChange's targeted update) since the
-  // toggle checkbox, the body's display:none, AND the week button's own inline date label all
-  // need to reflect the newly-enabled state, not just the 2 date inputs afterChange handles.
-  document.getElementById('dailyQuickWeek')?.addEventListener('click', ()=>{
-    const r = dailyThisWeekRange();
-    Object.assign(dailyCustomRange, {enabled:true, start:r.start, end:r.end});
-    saveDailyCustomRange();
-    renderGroupMenuDaily();
-    refreshSlideDaily();
-  });
-  document.getElementById('dailyQuickYesterday')?.addEventListener('click', ()=>{
-    const r = dailyYesterdayRange();
-    Object.assign(dailyCustomRange, {enabled:true, start:r.start, end:r.end});
-    saveDailyCustomRange();
-    renderGroupMenuDaily();
-    refreshSlideDaily();
+  col.querySelector('.dtr-yesterday-btn')?.addEventListener('click', function(){ dailyToggleDay(this.dataset.day); });
+  col.querySelectorAll('#dailyWeekdaySelector .wd-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> dailyToggleWeekday(Number(btn.dataset.dwd)));
   });
 }
 /* Daily Tracker por País — column-only menu (no "Filas" section: the country list is fixed,
@@ -4852,7 +4961,7 @@ function refreshSlideDaily(){
 function resetDailyFilters(){
   Object.assign(dailyTrackerCols, DAILY_TRACKER_COLS_DEFAULTS);
   Object.assign(dailyValueVis, DAILY_VALUE_VIS_DEFAULTS);
-  Object.assign(dailyCustomRange, {enabled:false, start:null, end:null});
+  Object.assign(dailyCustomRange, {days:null, weekdays:null});
   saveDailyTrackerView();
   saveDailyValueVis();
   saveDailyCustomRange();
