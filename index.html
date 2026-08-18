@@ -1016,6 +1016,7 @@ body.home-mode .zoom-pct{color:rgba(255,255,255,.85);}
    date inputs + a mode toggle + a weekday grid, none of which fit the plain checkbox-list width
    the other 2 columns were sized for. */
 .yoy-custom-range-col{flex:1.7;min-width:270px;}
+.daily-custom-range-col{flex:1.7;min-width:270px;}
 .ycr-row{padding:4px 10px 0;font-size:12.5px;font-weight:600;color:var(--text-secondary);}
 .ycr-dates{display:flex;align-items:center;gap:6px;padding:2px 10px 8px;}
 .ycr-dates input[type=date]{font-size:12px;color:var(--text-primary);background:var(--bg-section);border:1px solid var(--border-soft);border-radius:var(--radius-md);padding:3px 5px;font-family:inherit;min-width:0;flex:1;}
@@ -1125,7 +1126,14 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mtc-stat.variance.neg{background:color-mix(in srgb, var(--neg) 12%, transparent);border-color:color-mix(in srgb, var(--neg) 30%, transparent);}
 /* Item 7's grid modal (redesigned 2026-08-14, 2nd pass): metrics down as rows, OE Adult/OE
    Junior/Total across as columns, matching the layout the user described directly. */
-.mktorg-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:6px 10px;align-items:center;padding:4px 0;}
+/* Fixed px tracks (not fr) so the label/OE-Adult/OE-Junior columns land at the EXACT same x
+   position in both grids below -- real bug fixed 2026-08-18: .mktorg-grid has 4 columns (label +
+   OE Adult + OE Junior + Total) and .mktorg-cmp-grid has 3 (no Total), so identical "1.3fr 1fr..."
+   ratios in each divided a DIFFERENT total number of fr-units, making every column a different
+   width between the two sections -- scanning down the modal, "OE Adult" visibly jumped left/right
+   at the section boundary ("no esta la data sobre las mismas columnas"). Fixed widths make the two
+   grids agree regardless of how many columns either one happens to have. */
+.mktorg-grid{display:grid;grid-template-columns:220px 200px 200px 200px;gap:6px 10px;align-items:center;padding:4px 0;}
 .mktorg-row-label{font-size:var(--text-sm);font-weight:600;color:var(--text-primary);}
 .mktorg-grid-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);text-align:center;padding-bottom:6px;border-bottom:1px solid var(--border-soft);}
 .mktorg-cell{text-align:center;border-radius:var(--radius-md);overflow:hidden;background:var(--bg-section);}
@@ -1133,6 +1141,10 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 /* "abajito el porcentaje de share... en un grid más claro" (explicit ask) — the %-share sub-row
    is visually LIGHTER than the absolute value above it, not just smaller text. */
 .mktorg-cell-pct{font-size:11px;color:var(--text-secondary);background:var(--bg-card);padding:2px 4px 4px;}
+.mktorg-cell-delta{display:flex;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:700;padding:2px 4px 5px;background:var(--bg-card);}
+.mktorg-cell-delta.pos{color:var(--pos);} .mktorg-cell-delta.neg{color:var(--neg);}
+.mktorg-cell-delta svg{width:8px;height:8px;}
+.mktorg-cell-delta-label{font-weight:500;color:var(--text-secondary);}
 .mktorg-cell.mktorg-total{background:color-mix(in srgb, var(--brand-accent) 10%, transparent);}
 .mktorg-cell.mktorg-total .mktorg-cell-val{color:var(--brand-accent);}
 .mktorg-empty{padding:20px;text-align:center;color:var(--text-secondary);font-size:var(--text-sm);}
@@ -1144,7 +1156,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 .mktorg-modal-scroll{flex:1;min-height:0;overflow-y:auto;margin-top:var(--space-4);padding-right:4px;}
 .mktorg-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin:10px 0 4px;}
 .mktorg-section-title:first-child{margin-top:0;}
-.mktorg-cmp-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:0 10px;align-items:center;}
+.mktorg-cmp-grid{display:grid;grid-template-columns:220px 200px 200px;gap:0 10px;align-items:center;}
 .mktorg-cmp-label{font-size:var(--text-sm);font-weight:600;color:var(--text-primary);padding:3px 0;border-top:1px solid var(--border-soft);}
 .mktorg-cmp-cell{text-align:center;padding:3px 0;border-top:1px solid var(--border-soft);}
 .mktorg-cmp-cell .metric-cell{display:inline-flex;flex-direction:column;align-items:center;}
@@ -1459,17 +1471,20 @@ function mnccTemperatureCell(actualPct, comparisonPct, forceGray){
    shape that reusing mnccTemperatureCell's 2-arg signature would have forced an awkward "pp" label
    on what is actually a "%" figure, hence a dedicated function instead of a thin wrapper). Same
    2-state green/red rule (>=0 green, <0 red), same gray-when-no-comparison fallback. */
-function netImpactTemperaturePct(a,b){
-  const netA = a.NewCash-a.Spend, netB = b.NewCash-b.Spend;
-  return netB ? (netA/netB - 1) : null;
-}
-function netImpactTemperatureCell(pct, forceGray){
-  if(forceGray || pct==null || isNaN(pct)){
+/* Simplified 2026-08-18, same fix philosophy as the Net Impact table cell (see yoyCellHtml's own
+   'Impact' case): this used to compare THIS period's Net Impact against the prior period's as a
+   ratio (netA/netB - 1) -- mathematically broken the same way, since Net Impact can be small,
+   zero, or negative, making that ratio explode or flip sign for no meaningful reason. The
+   semaphore now just reads Net Impact's own sign directly: >=0 is green, <0 is red, full stop --
+   no comparison against a prior period at all. Renamed from netImpactTemperaturePct (it no
+   longer produces a percentage) — every call site updated together. */
+function netImpactValue(a,b){ return (a.NewCash-b.NewCash)-(a.Spend-b.Spend); }
+function netImpactTemperatureCell(v, forceGray){
+  if(forceGray || v==null || isNaN(v)){
     return `<div class="metric-cell muted"><span class="nc-semaphore gray"></span></div>`;
   }
-  const pctRounded = Math.round(pct*1000)/10;
-  const cls = pctRounded>=0 ? 'green' : 'red';
-  const title = `${pctRounded>=0?'+':''}${pctRounded.toFixed(1)}%`;
+  const cls = v>=0 ? 'green' : 'red';
+  const title = fmtSigned(v, fmtUSD);
   return `<div class="metric-cell muted"><span class="nc-semaphore ${cls}" title="${title}"></span></div>`;
 }
 function ltvShort(o){ return o.TotalEnrollments ? o.ProjRevShort/o.TotalEnrollments : null; }
@@ -1512,24 +1527,32 @@ function computeDelta(av, bv, fmtFn, invert, isPP){
     const pp = (av-bv)*100;
     const ppRounded = Math.round(pp*10)/10;
     const good = invert ? ppRounded<=0 : ppRounded>=0;
+    // `up` is the arrow's actual direction: did the value literally go up or down. Deliberately
+    // NOT the same as `good` (which is "is this good or bad for THIS metric", flipped by invert) --
+    // an inverted metric that went UP is still bad (colored red via `good`), but the arrow must
+    // still point up, since it genuinely increased. Real bug fixed 2026-08-18: arrowIcon() used to
+    // receive `good` directly, so an inverted metric with a real increase drew a DOWN arrow next to
+    // a "+4%" label -- the arrow's direction must never depend on invert, only its color does.
+    const up = ppRounded>=0;
     const main = `${pp>=0?'+':''}${pp.toFixed(1)}pp`;
-    return {good, text: main, main, sub: null};
+    return {good, up, text: main, main, sub: null};
   }
   if(bv===0) return null;
   const abs = av-bv, pct=(av-bv)/bv;
   const pctRounded = Math.round(pct*100);
   const good = invert ? pctRounded<=0 : pctRounded>=0;
+  const up = pctRounded>=0; // see isPP branch above for why this is tracked separately from `good`
   const pctStr = Math.abs(pctRounded) + '%';
   const main = fmtSigned(abs,fmtFn);
   const sub = `(${pctRounded>=0?'+':'-'}${pctStr})`;
-  return {good, text: `${main} ${sub}`, main, sub};
+  return {good, up, text: `${main} ${sub}`, main, sub};
 }
 function metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, budgetLabel, splitDelta){
   if(av==null) return `<div class="metric-cell"><div class="mc-actual">—</div></div>`;
   const d = computeDelta(av, bv, fmtFn, invert, isPP);
   const deltaHtml = !d ? '' : splitDelta
-    ? `<div class="mc-delta mc-delta-split ${d.good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(d.good)}${d.main}</div>${d.sub?`<div class="mc-delta-sub">${d.sub}</div>`:''}</div>`
-    : `<div class="mc-delta ${d.good?'pos':'neg'}">${arrowIcon(d.good)}${d.text}</div>`;
+    ? `<div class="mc-delta mc-delta-split ${d.good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(d.up)}${d.main}</div>${d.sub?`<div class="mc-delta-sub">${d.sub}</div>`:''}</div>`
+    : `<div class="mc-delta ${d.good?'pos':'neg'}">${arrowIcon(d.up)}${d.text}</div>`;
   const actualCls = extraActualClass ? ` ${extraActualClass}` : '';
   return `<div class="metric-cell"><div class="mc-actual${actualCls}">${fmtFn(av)}</div><div class="mc-budget">${budgetLabel||'Bgt'} ${fmtFn(bv)}</div>${deltaHtml}</div>`;
 }
@@ -1598,9 +1621,12 @@ function pacingCell(av, bv, fmtFn, higherIsBetter){
     // shown in "(±Y.Ypp)", not the raw ratio comparison, so a "-0.0pp" never renders red.
     const diffPPRounded = Math.round(diffPP*10)/10;
     const good = higherIsBetter ? diffPPRounded>=0 : diffPPRounded<=0;
+    // Arrow direction is the RAW sign of diffPP (pacing ahead vs behind), independent of
+    // higherIsBetter -- same fix/reasoning as computeDelta()'s `up` vs `good` split, 2026-08-18.
+    const up = diffPPRounded>=0;
     // Same main/sub split as computeDelta() — "Pacing XX%" and "(±Y.Ypp)" each get their own
     // line instead of competing for width on one, so both can render at a legible size.
-    pacingHtml = `<div class="mc-delta mc-delta-split ${good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(good)}${L('Pacing','Pacing')} ${(valuePacing*100).toFixed(0)}%</div><div class="mc-delta-sub">(${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div></div>`;
+    pacingHtml = `<div class="mc-delta mc-delta-split ${good?'pos':'neg'}"><div class="mc-delta-main">${arrowIcon(up)}${L('Pacing','Pacing')} ${(valuePacing*100).toFixed(0)}%</div><div class="mc-delta-sub">(${diffPP>=0?'+':''}${diffPP.toFixed(1)}pp)</div></div>`;
   }
   // "(mes completo)"/"(full month)" dropped 2026-08-14: redundant with the slide subtitle, which
   // already spells out "Budget: full month (...)" — repeating it in every single cell was real,
@@ -2343,9 +2369,17 @@ function yoyDefaultActualRange(){
     return {start: `${y}-${String(qStartMonth).padStart(2,'0')}-01`, end: cutoff};
   }
   if(cat==='WOW'){
+    // Fixed 2026-08-18: end used to be cutoff-1 ("yesterday relative to cutoff"), a leftover from
+    // when the daily refresh could still include an in-progress "today" in cutoff itself. Now that
+    // the refresh pipeline always stops at a fully-elapsed day (see DAILY_REFRESH_RUNBOOK.md), the
+    // cutoff IS already "yesterday" -- subtracting another day here made the range end TWO days
+    // behind real time, one full day further back than every other category (YOY/QOQ/MOM all end
+    // AT cutoff). Real bug this caused: whenever cutoff itself fell on a Monday, sinceMonday=0 made
+    // start=cutoff and end=cutoff-1, an INVERTED range (start after end) that silently zeroed out
+    // the whole WOW view. end is simply cutoff now, exactly like every other category.
     const dow = parseISODate(cutoff).getDay(); // JS convention: 0=Sun..6=Sat
     const sinceMonday = (dow + 6) % 7; // Mon=0 days since Monday ... Sun=6
-    return {start: addDaysISO(cutoff, -sinceMonday), end: addDaysISO(cutoff, -1)};
+    return {start: addDaysISO(cutoff, -sinceMonday), end: cutoff};
   }
   return {start: DATA.meta.month+'-01', end: cutoff};
 }
@@ -2528,8 +2562,13 @@ const MKTORG_SHARE_METRICS = new Set(['Leads','Sales','NewCash']);
 // Country-share columns (% of LatAm total — a different axis than OE-vs-Junior) and the
 // semaphore (a colored dot, not a value) never belong in this modal.
 const MKTORG_EXCLUDED_METRICS = new Set(['SpendShare','LeadsShare','SalesShare','NewCashSemaphore']);
-function mktOrgShareRowValues(key, countries){
-  const range = yoyActiveActualRange();
+/* Sums one weekday-filtered date range (either the active period or its paired compare period)
+   into {oeV, jrV, total} for a single share metric. Factored out of mktOrgShareRowValues() 2026-08-18
+   so the share grid can show a period-over-period delta too (real ask: "no veo diferencia segun el
+   periodo que se seleccionó... debe verse tambien la diferencia") -- previously this only ever
+   summed the ACTIVE range, so the %-of-total shown was correct for whatever period was selected,
+   but there was no way to tell whether that period moved up or down from the one before it. */
+function mktOrgShareRangeValues(key, countries, range){
   const weekdaySet = yoyWeekdaySet();
   const byOrg = aggregateMktOrgDaily(DATA.yoyDailyByMktOrg, range.start, range.end, weekdaySet, countries);
   const sumField = org => (byOrg[org] && byOrg[org][key]) || 0;
@@ -2543,6 +2582,12 @@ function mktOrgShareRowValues(key, countries){
   let otherV = 0;
   Object.keys(byOrg).forEach(k=>{ if(k!=='OE' && k!=='Open English Junior') otherV += (byOrg[k][key]||0); });
   return {oeV, jrV, total: oeV+jrV+otherV};
+}
+function mktOrgShareRowValues(key, countries){
+  return {
+    actual: mktOrgShareRangeValues(key, countries, yoyActiveActualRange()),
+    compare: mktOrgShareRangeValues(key, countries, yoyActiveCompareRange()),
+  };
 }
 /* One deck's yoyDailyByCountry, summed over a country scope, for BOTH the active actual range AND
    its paired compare range — exactly the 2 numbers every comparison cell needs. current/prior are
@@ -2573,7 +2618,13 @@ function mktOrgMetricCell(key, a, b){
     case 'CMPS': return yoyMetricCell(cmps(a), cmps(b), fmtUSD, true, false);
     case 'AvgPrice': return yoyMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
     case 'MarginPct': return yoyMetricCell(mncc(a), mncc(b), fmtPct, false, true);
-    case 'Impact': return yoyMetricCell(a.NewCash-a.Spend, b.NewCash-b.Spend, fmtUSD, false, false);
+    // Net Impact is ALREADY a difference ((a.NewCash-b.NewCash)-(a.Spend-b.Spend)) -- routing it
+    // through yoyMetricCell() used to also show it as if IT had its own actual/prior/%change, which
+    // is mathematically broken for a value that can cross zero (real bug reported 2026-08-18: Peru
+    // showed "+12,433" next to "-215%" -- a % change of an arbitrary, possibly near-zero or
+    // negative "prior" difference). Fixed to the same single-value, sign-colored format Lámina A
+    // and Daily Tracker already use for their own Impact cell (see their chCellHtml/dailyCellHtml).
+    case 'Impact': { const v = (a.NewCash-b.NewCash)-(a.Spend-b.Spend); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
     case 'LtvShort': return yoyMetricCell(ltvShort(a), ltvShort(b), fmtUSD, false, false);
     case 'FullUnitCmShort': return yoyMetricCell(fullUnitCmShort(a), fullUnitCmShort(b), fmtUSD, false, false);
     case 'FullCmPctShort': return yoyMetricCell(fullCmPct(a), fullCmPct(b), fmtPct, false, true, mcPctSignClass(fullCmPct(a)));
@@ -2584,15 +2635,28 @@ function mktOrgGridModalHtml(countries, scopeLabel){
   const visible = YOY_COL_DEFS.filter(c => yoyView.cols[c.key] && !MKTORG_EXCLUDED_METRICS.has(c.key));
   const shareMetrics = visible.filter(c => MKTORG_SHARE_METRICS.has(c.key));
   const cmpMetrics = visible.filter(c => !MKTORG_SHARE_METRICS.has(c.key));
-  const cell = (v, fmt, pct, extraCls) => `<div class="mktorg-cell${extraCls?' '+extraCls:''}"><div class="mktorg-cell-val">${fmt(v)}</div><div class="mktorg-cell-pct">${pct}</div></div>`;
+  // `delta` is pre-rendered HTML (or '' to omit the line entirely) so cell() itself never needs
+  // to know the comparison math -- see shareDeltaHtml() below, same separation shareRowsHtml uses.
+  const cell = (v, fmt, pct, delta, extraCls) => `<div class="mktorg-cell${extraCls?' '+extraCls:''}"><div class="mktorg-cell-val">${fmt(v)}</div><div class="mktorg-cell-pct">${pct}</div>${delta||''}</div>`;
+  /* Period-over-period delta for one share cell — added 2026-08-18 (explicit ask: the share grid
+     showed a live %-of-total for whatever period was selected, but no sense of whether THIS
+     period's Leads/Sales/NewCash moved up or down from the period before it). Never inverted
+     (an increase in Leads/Sales/NewCash is always "up" and always good, unlike Spend-side
+     metrics) -- arrow direction and color agree here by construction, no separate `up`/`good`
+     split needed the way computeDelta() requires for invertible metrics. */
+  const shareDeltaHtml = (cur, prev) => {
+    if(!prev) return ''; // no stable baseline to compare against (0 or absent last period)
+    const pctRounded = Math.round((cur-prev)/prev*100);
+    return `<div class="mktorg-cell-delta ${pctRounded>=0?'pos':'neg'}">${arrowIcon(pctRounded>=0)}${pctRounded>=0?'+':''}${pctRounded}% <span class="mktorg-cell-delta-label">${yoyPriorLabel()}</span></div>`;
+  };
   const shareRowsHtml = shareMetrics.map(m=>{
-    const {oeV, jrV, total} = mktOrgShareRowValues(m.key, countries);
+    const {actual, compare} = mktOrgShareRowValues(m.key, countries);
     const fmt = m.key==='NewCash' ? fmtUSD : fmtNum;
-    const pctOf = v => fmtPct(total ? v/total : 0);
+    const pctOf = v => fmtPct(actual.total ? v/actual.total : 0);
     return `<div class="mktorg-row-label">${colLabelYoy(m.key)}</div>
-      ${cell(oeV, fmt, pctOf(oeV))}
-      ${cell(jrV, fmt, pctOf(jrV))}
-      ${cell(total, fmt, fmtPct(total?1:0), 'mktorg-total')}`;
+      ${cell(actual.oeV, fmt, pctOf(actual.oeV), shareDeltaHtml(actual.oeV, compare.oeV))}
+      ${cell(actual.jrV, fmt, pctOf(actual.jrV), shareDeltaHtml(actual.jrV, compare.jrV))}
+      ${cell(actual.total, fmt, fmtPct(actual.total?1:0), shareDeltaHtml(actual.total, compare.total), 'mktorg-total')}`;
   }).join('');
   const oeBundle = crossDeckBundle(siblingOEDeckId(), countries);
   const jrBundle = crossDeckBundle(DECK_ID, countries);
@@ -3720,8 +3784,11 @@ function headerBlock(id,titleEs,titleEn,subEs,subEn){
    SIMPLIFIED 2026-08 along with mnccTemperatureCell() itself: only 2 states now (no yellow
    tier) — green when actual %MNCC is at or above the comparison %MNCC, red when below. */
 function semaphoreLegendHtml(isYoy){
-  const label = isYoy ? L('% Diff Net Impact Temperature','% Diff Net Impact Temperature') : L('% MNCC Temperature','% MNCC Temperature');
-  const unit = isYoy ? '%' : 'pp';
+  // Label/unit simplified 2026-08-18 along with netImpactTemperatureCell() itself — the YoY
+  // semaphore reads Net Impact's raw sign now, not a %-diff against a prior period, so it gets
+  // no unit suffix at all (Lámina A/Daily Tracker's %MNCC-based one is unaffected, still "pp").
+  const label = isYoy ? L('Net Impact Temperature','Net Impact Temperature') : L('% MNCC Temperature','% MNCC Temperature');
+  const unit = isYoy ? '' : 'pp';
   return `<div class="footer-legend">
     <span class="fl-label">${label}</span>
     <span class="fl-item"><span class="nc-dot green"></span>&ge;0${unit}</span>
@@ -3888,7 +3955,7 @@ function colLabel(key){
 function colLabelYoy(key){
   // 'Impact' special-case removed 2026-08 — colLabel() itself now says 'Net Impact' everywhere.
   const yoyOnly = {MediaSpend:'Media Spend', MediaCPL:'Media CPL', PaidOrganicSpend:L('Paid Social + Organic','Paid Social + Organic'),
-    NewCashSemaphore:L('% Diff Net Impact Temperature','% Diff Net Impact Temperature')};
+    NewCashSemaphore:L('Net Impact Temperature','Net Impact Temperature')};
   return yoyOnly[key] || colLabel(key);
 }
 function visibleCols(defs){ return defs.filter(c=> laminaAView.cols[c.key]); }
@@ -4017,7 +4084,7 @@ function slideA(){
       `${deckLabel} · Blended and Channel Groupings · ${dr.en}`)}
     <div class="slide-body centered-stack">
       <div class="blended-hero" data-modal="A" data-key="blended">
-        <div class="bh-head"><span class="bh-badge">Blended</span><span class="bh-sub">${L('Total empresa · todos los channel groupings','Company total · all channel groupings')}</span></div>
+        <div class="bh-head"><span class="bh-badge">Blended</span><span class="bh-sub">${L('Total empresa · todos los channel groupings','Company total · all channel groupings')}</span>${targetPacingChip}</div>
         <div class="bh-kpis" style="grid-template-columns:${heroCols.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpis}</div>
       </div>
       <div class="detail-label"><span>${L('Detalle por Channel Grouping','Detail by Channel Grouping')}</span><span class="detail-label-line"></span>${targetPacingChip}</div>
@@ -4076,13 +4143,25 @@ function slideDaily(){
   const countries = isBrazil ? ['Brazil'] : (showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER, 'Brazil'] : DAILY_TRACKER_ROW_ORDER);
   const emptyActual = {Spend:0,Leads:0,Sales:0,NewCash:0,FullCM:0,ProjRevShort:0,TotalEnrollments:0};
   const emptyBudget = {Spend:0,Leads:0,Sales:0,NewCash:0};
+  // Custom date range (explicit ask 2026-08-18) — re-aggregates the SAME raw per-day rows the
+  // MTD numbers above already come from, just over whatever [start,end] is active instead of the
+  // fixed month-to-date window. See dailyTrackerRangeActuals/Budget's own comment for why no new
+  // backend/export work was needed for this.
+  const rangeActive = dailyCustomRange.enabled;
+  const activeRange = rangeActive ? dailyActiveRange() : null;
+  const rangeActuals = rangeActive ? dailyTrackerRangeActuals(DECK_ID, activeRange.start, activeRange.end) : null;
+  const rangeBudget = rangeActive ? dailyTrackerRangeBudget(DECK_ID, activeRange.start, activeRange.end) : null;
+  const rangeActualsBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeActuals('OE-BR', activeRange.start, activeRange.end) : null;
+  const rangeBudgetBR = (rangeActive && showMergedBrazil) ? dailyTrackerRangeBudget('OE-BR', activeRange.start, activeRange.end) : null;
   const actualFor = c => {
-    if(isBrazil) return DATA.actuals.branded.total;
-    if(c==='Brazil') return DATA_BY_DECK['OE-BR'].actuals.branded.total;
+    if(isBrazil) return rangeActive ? (rangeActuals['Brazil']||emptyActual) : DATA.actuals.branded.total;
+    if(c==='Brazil') return rangeActive ? (rangeActualsBR['Brazil']||emptyActual) : DATA_BY_DECK['OE-BR'].actuals.branded.total;
+    if(rangeActive) return rangeActuals[c] || emptyActual;
     return DATA.actuals.branded.byCountry[c] || emptyActual;
   };
   const budgetFor = c => {
-    if(c==='Brazil' && !isBrazil) return DATA_BY_DECK['OE-BR'].dailyTrackerBudget.Brazil || emptyBudget;
+    if(c==='Brazil' && !isBrazil) return rangeActive ? (rangeBudgetBR['Brazil']||emptyBudget) : (DATA_BY_DECK['OE-BR'].dailyTrackerBudget.Brazil || emptyBudget);
+    if(rangeActive) return rangeBudget[c] || emptyBudget;
     return DATA.dailyTrackerBudget[c] || emptyBudget;
   };
 
@@ -4202,9 +4281,14 @@ function slideDaily(){
   return `<section class="slide slide-daily${isBrazil?' slide-daily-br':''}${dailyValueVis.hideActual?' hide-actual-value':''}${dailyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('daily')}"><div class="slide-inner">
     ${(() => {
       const rawLink = (label) => `<a class="raw-source-link" href="https://drive.google.com/drive/folders/1OfX-a7mMdtkegYZAJs1T3KvRfy6LkP86" target="_blank" rel="noopener">${label}</a>`;
+      // Custom range active (explicit ask 2026-08-18): show the actual [start,end] instead of the
+      // fixed "acumulado al {asOfDay}" MTD phrasing -- same mm/dd-first abbreviated format already
+      // used everywhere else a date range needs a compact subtitle (fmtYoyRange).
+      const periodEs = rangeActive ? fmtYoyRange(activeRange).es : `acumulado al ${dday} de ${MONTHS_ES[dm-1]} de ${dy}`;
+      const periodEn = rangeActive ? fmtYoyRange(activeRange).en : `accumulated through ${MONTHS_EN[dm-1]} ${dday}, ${dy}`;
       return headerBlock('s-daily', 'MTD Branded KPIs vs Forecast By Country', 'MTD Branded KPIs vs Forecast By Country',
-        `${deckLabel} · Actual vs Daily Tracker acumulado al ${dday} de ${MONTHS_ES[dm-1]} de ${dy} · ${rawLink('ver carpeta de origen')}`,
-        `${deckLabel} · Actual vs Daily Tracker accumulated through ${MONTHS_EN[dm-1]} ${dday}, ${dy} · ${rawLink('view source folder')}`);
+        `${deckLabel} · Actual vs Daily Tracker ${periodEs} · ${rawLink('ver carpeta de origen')}`,
+        `${deckLabel} · Actual vs Daily Tracker ${periodEn} · ${rawLink('view source folder')}`);
     })()}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtml}
     </div>
@@ -4242,6 +4326,9 @@ function fmtYoyRange(range){
   const [ey,em,ed] = range.end.split('-').map(Number);
   const sMEs = MONTHS_ABBR_ES[sm-1], sMEn = MONTHS_ABBR_EN[sm-1];
   const eMEs = MONTHS_ABBR_ES[em-1], eMEn = MONTHS_ABBR_EN[em-1];
+  // Single-day range (e.g. Daily Tracker's "Ayer" quick button, added 2026-08-18): "Aug 17, 2026",
+  // never the redundant-looking "Aug 17-17, 2026" the multi-day branch below would otherwise emit.
+  if(range.start===range.end) return {es:`${sMEs} ${sd}, ${sy}`, en:`${sMEn} ${sd}, ${sy}`};
   if(sy===ey && sm===em) return {es:`${sMEs} ${sd}-${ed}, ${sy}`, en:`${sMEn} ${sd}-${ed}, ${sy}`};
   if(sy===ey) return {es:`${sMEs} ${sd} – ${eMEs} ${ed}, ${sy}`, en:`${sMEn} ${sd} – ${eMEn} ${ed}, ${sy}`};
   return {es:`${sMEs} ${sd}, ${sy} – ${eMEs} ${ed}, ${ey}`, en:`${sMEn} ${sd}, ${sy} – ${eMEn} ${ed}, ${ey}`};
@@ -4304,15 +4391,17 @@ function slideYoy(){
       case 'NewCash': return yoyMetricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
       // Same Costa Rica gray override as Daily Tracker's dailyCellHtml — see its comment (widened
       // 2026-08-17 to every deck/brand, not just OE Adult).
-      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactTemperaturePct(a,b), country==='Costa Rica');
+      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactValue(a,b), country==='Costa Rica');
       // Net Impact reverted to the standard 2-value (actual/año anterior) + delta format here,
       // explicit ask 2026-08-11: "no veo ambos valores como se ve en Spend" — YoY-only revert (see
-      // netImpactTemperaturePct's own comment for why this lámina, unlike Lámina A/Daily Tracker,
+      // netImpactValue's own comment for why this lámina, unlike Lámina A/Daily Tracker,
       // has no pacing-fairness question blocking it: the comparison side is always already
       // period-matched). The delta this produces is numerically IDENTICAL to the old single-value
       // impact(a,b) (algebraically (a.NewCash-a.Spend)-(b.NewCash-b.Spend) === (a.NewCash-b.NewCash)
       // -(a.Spend-b.Spend)) — only the PRESENTATION changed, not the underlying number.
-      case 'Impact': return yoyMetricCell(a.NewCash-a.Spend, b.NewCash-b.Spend, fmtUSD, false, false);
+      // Single-value, sign-colored -- see mktOrgMetricCell's own 'Impact' case for the full
+      // explanation of why yoyMetricCell() was wrong here (real bug, 2026-08-18).
+      case 'Impact': { const v = (a.NewCash-b.NewCash)-(a.Spend-b.Spend); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
       case 'LtvShort': return yoyMetricCell(ltvShort(a), ltvShort(b), fmtUSD, false, false);
       case 'FullUnitCmShort': return yoyMetricCell(fullUnitCmShort(a), fullUnitCmShort(b), fmtUSD, false, false);
       case 'FullCmPctShort': return yoyMetricCell(fullCmPct(a), fullCmPct(b), fmtPct, false, true, mcPctSignClass(fullCmPct(a)));
@@ -4335,7 +4424,7 @@ function slideYoy(){
       case 'LtvShort': return {icon:'tag', label:'LTV Short', av:ltvShort(heroActual), bv:ltvShort(heroYoy), fmt:fmtUSD, invert:false, pp:false};
       case 'FullUnitCmShort': return {icon:'tag', label:'Unit CM Short', av:fullUnitCmShort(heroActual), bv:fullUnitCmShort(heroYoy), fmt:fmtUSD, invert:false, pp:false, highlight:true};
       case 'FullCmPctShort': return {icon:'trend', label:'CM % Short', av:fullCmPct(heroActual), bv:fullCmPct(heroYoy), fmt:fmtPct, invert:false, pp:true, highlight:true};
-      case 'NewCashSemaphore': return {icon:'trend', label:L('% Diff Net Impact Temperature','% Diff Net Impact Temperature'), av:netImpactTemperaturePct(heroActual,heroYoy), semaphore:true};
+      case 'NewCashSemaphore': return {icon:'trend', label:L('Net Impact Temperature','Net Impact Temperature'), av:netImpactValue(heroActual,heroYoy), semaphore:true};
     }
   }
   const bhKpisYoy = heroColsYoy.map(c=>{
@@ -4581,6 +4670,130 @@ function resetLaminaAFilters(){
   refreshSlideA();
   renderGroupMenu();
 }
+/* ================= DAILY TRACKER CUSTOM DATE RANGE ================= */
+/* Added 2026-08-18 (explicit ask): Daily Tracker only ever showed month-to-date. No new
+   backend/export work needed -- this re-aggregates the SAME per-day raw rows already sitting in
+   _rawByDeckCache (dailyRows/channelKpiRows for actuals, dailyTrackerBudgetRows for budget) over
+   an arbitrary [start,end], exactly like aggregateYoyDaily() does for YoY's own custom range,
+   just Branded-only (the only channel Daily Tracker ever shows) and pulling budget too (YoY has
+   no budget side, it compares against last year's actual instead). */
+const LS_DAILY_CUSTOM_RANGE = 'brandedkpis_daily_customrange_v1';
+let dailyCustomRange = { enabled: false, start: null, end: null };
+(function loadDailyCustomRange(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LS_DAILY_CUSTOM_RANGE)||'null');
+    if(saved) Object.assign(dailyCustomRange, saved);
+  }catch(e){}
+})();
+function saveDailyCustomRange(){ localStorage.setItem(LS_DAILY_CUSTOM_RANGE, JSON.stringify(dailyCustomRange)); }
+function dailyCutoffISO(){ return `${DATA.meta.month}-${String(DATA.meta.asOfDay).padStart(2,'0')}`; }
+function dailyDefaultRange(){ return { start: DATA.meta.month+'-01', end: dailyCutoffISO() }; }
+function dailyActiveRange(){
+  const def = dailyDefaultRange();
+  return { start: dailyCustomRange.start||def.start, end: dailyCustomRange.end||def.end };
+}
+/* Monday of the week containing cutoff, through cutoff itself — a still-open week naturally clips
+   to today's weekday, never reaching into days that haven't happened yet ("considerando semana
+   parcial"). Same Monday-math as yoyDefaultActualRange()'s WOW branch — see its own 2026-08-18
+   comment for why the range's END is cutoff itself, not cutoff-1: the daily refresh pipeline
+   never lets cutoff be an in-progress day, so cutoff already IS "yesterday"/the last complete day. */
+function dailyThisWeekRange(){
+  const cutoff = dailyCutoffISO();
+  const dow = parseISODate(cutoff).getDay();
+  const sinceMonday = (dow+6)%7;
+  return { start: addDaysISO(cutoff, -sinceMonday), end: cutoff };
+}
+function dailyYesterdayRange(){ const c = dailyCutoffISO(); return { start: c, end: c }; }
+function fmtMMDD(iso){ const [,m,d] = iso.split('-'); return `${m}/${d}`; }
+/* Branded-only, arbitrary [start,end], per country — reuses the exact same field names/helpers
+   buildActuals() in viewBuilder.js already uses (addDailyRowInto/addKpiRowInto/bucketCountry/
+   emptyTotals — all top-level in that file, loaded before this script runs), so this can never
+   silently drift from how the "real" MTD numbers get computed. */
+function dailyTrackerRangeActuals(deckId, startISO, endISO){
+  const cache = _rawByDeckCache[deckId];
+  const isBrazilDeck = DECKS[deckId].region === 'Brazil';
+  const byCountry = {};
+  const addRows = (rows, adder) => {
+    for(const r of rows){
+      if(r.date<startISO || r.date>endISO) continue;
+      if(r.channel_grouping !== 'Brand TV Channels') continue;
+      const country = bucketCountry(r.country, isBrazilDeck);
+      if(country===null) continue;
+      const b = byCountry[country] || (byCountry[country] = emptyTotals());
+      adder(b, r);
+    }
+  };
+  addRows(cache.dailyRows, addDailyRowInto);
+  addRows(cache.channelKpiRows, addKpiRowInto);
+  return byCountry;
+}
+function dailyTrackerRangeBudget(deckId, startISO, endISO){
+  const byCountry = {};
+  for(const r of _rawByDeckCache[deckId].dailyTrackerBudgetRows){
+    if(r.date<startISO || r.date>endISO) continue;
+    const b = byCountry[r.country] || (byCountry[r.country] = {Spend:0,Leads:0,Sales:0,NewCash:0});
+    b.Spend += r.spend||0; b.Leads += r.leads||0; b.Sales += r.sales||0; b.NewCash += r.newCashCore||0;
+  }
+  return byCountry;
+}
+function dailyCustomRangePanelHtml(){
+  const {start, end} = dailyActiveRange();
+  const weekR = dailyThisWeekRange();
+  return `<div class="side-menu-header">${L('Rango de fechas','Date range')}</div>
+    <label><input type="checkbox" id="dailyCustomRangeToggle" ${dailyCustomRange.enabled?'checked':''}> ${L('Activar rango personalizado','Enable custom range')}</label>
+    <div class="ycr-body" id="dcrBody" style="${dailyCustomRange.enabled?'':'display:none'}">
+      <div class="ycr-dates"><input type="date" id="dailyRangeStart" value="${start}" max="${dailyCutoffISO()}"><span>→</span><input type="date" id="dailyRangeEnd" value="${end}" max="${dailyCutoffISO()}"></div>
+      <div class="ycr-compare-modes">
+        <button type="button" id="dailyQuickWeek">${L('Esta semana','This week')} (${fmtMMDD(weekR.start)} ${L('a','to')} ${fmtMMDD(weekR.end)})</button>
+        <button type="button" id="dailyQuickYesterday">${L('Ayer','Yesterday')}</button>
+      </div>
+    </div>`;
+}
+/* Same "never rewrite the input the visitor is actively typing in" discipline as
+   syncYcrDateInputs() — see its own comment for the native <input type=date> bug this avoids. */
+function syncDcrDateInputs(skipId){
+  const active = dailyActiveRange();
+  const s = document.getElementById('dailyRangeStart'), e = document.getElementById('dailyRangeEnd');
+  if(s && s.id!==skipId) s.value = active.start;
+  if(e && e.id!==skipId) e.value = active.end;
+}
+function wireDailyCustomRangePanel(menu){
+  const col = menu.querySelector('.daily-custom-range-col');
+  if(!col) return;
+  const afterChange = (skipId) => { saveDailyCustomRange(); syncDcrDateInputs(skipId); refreshSlideDaily(); };
+  document.getElementById('dailyCustomRangeToggle')?.addEventListener('change', e=>{
+    dailyCustomRange.enabled = e.target.checked;
+    const body = document.getElementById('dcrBody');
+    if(body) body.style.display = e.target.checked ? '' : 'none';
+    saveDailyCustomRange();
+    refreshSlideDaily();
+  });
+  document.getElementById('dailyRangeStart')?.addEventListener('change', e=>{
+    dailyCustomRange.start = e.target.value || null;
+    afterChange(e.target.id);
+  });
+  document.getElementById('dailyRangeEnd')?.addEventListener('change', e=>{
+    dailyCustomRange.end = e.target.value || null;
+    afterChange(e.target.id);
+  });
+  // Quick buttons re-render the whole menu (not just afterChange's targeted update) since the
+  // toggle checkbox, the body's display:none, AND the week button's own inline date label all
+  // need to reflect the newly-enabled state, not just the 2 date inputs afterChange handles.
+  document.getElementById('dailyQuickWeek')?.addEventListener('click', ()=>{
+    const r = dailyThisWeekRange();
+    Object.assign(dailyCustomRange, {enabled:true, start:r.start, end:r.end});
+    saveDailyCustomRange();
+    renderGroupMenuDaily();
+    refreshSlideDaily();
+  });
+  document.getElementById('dailyQuickYesterday')?.addEventListener('click', ()=>{
+    const r = dailyYesterdayRange();
+    Object.assign(dailyCustomRange, {enabled:true, start:r.start, end:r.end});
+    saveDailyCustomRange();
+    renderGroupMenuDaily();
+    refreshSlideDaily();
+  });
+}
 /* Daily Tracker por País — column-only menu (no "Filas" section: the country list is fixed,
    never a user choice, unlike Lámina A's toggleable channel-grouping rows). Only rendered when
    the current deck actually has the slide (DECKS[...].slides includes 'daily') — Junior decks
@@ -4603,6 +4816,9 @@ function renderGroupMenuDaily(){
     <div class="group-menu-col">
       <div class="side-menu-header">${L('Columnas','Columns')}</div>
       ${colsHtml}
+    </div>
+    <div class="group-menu-col daily-custom-range-col">
+      ${dailyCustomRangePanelHtml()}
     </div>`;
   document.getElementById('dailyResetBtn')?.addEventListener('click', resetDailyFilters);
   menu.querySelectorAll('input[data-daily-col]').forEach(inp=>{
@@ -4623,6 +4839,7 @@ function renderGroupMenuDaily(){
     includeBrazil = e.target.checked;
     refreshAllForBrazilMerge();
   });
+  wireDailyCustomRangePanel(menu);
 }
 function refreshSlideDaily(){
   const idx = SLIDES.findIndex(s=>s.id==='daily');
@@ -4635,8 +4852,10 @@ function refreshSlideDaily(){
 function resetDailyFilters(){
   Object.assign(dailyTrackerCols, DAILY_TRACKER_COLS_DEFAULTS);
   Object.assign(dailyValueVis, DAILY_VALUE_VIS_DEFAULTS);
+  Object.assign(dailyCustomRange, {enabled:false, start:null, end:null});
   saveDailyTrackerView();
   saveDailyValueVis();
+  saveDailyCustomRange();
   refreshSlideDaily();
   renderGroupMenuDaily();
 }
