@@ -4480,8 +4480,16 @@ function slideYoy(){
       case 'AvgPrice': return {icon:'tag', label:L('Precio Prom.','Avg Price'), av:avgPrice(heroActual), bv:avgPrice(heroYoy), fmt:fmtUSD, invert:false, pp:false};
       case 'MarginPct': return {icon:'trend', label:'% MNCC', av:mncc(heroActual), bv:mncc(heroYoy), fmt:fmtPct, invert:false, pp:true};
       case 'NewCash': return {icon:'wallet', label:'New Cash Core', av:heroActual.NewCash, bv:heroYoy.NewCash, fmt:fmtUSD, invert:false, pp:false, highlight:true};
-      // See yoyCellHtml's 'Impact' case comment — same revert, same reasoning, same delta value.
-      case 'Impact': return {icon:'spark', label:'Net Impact', av:heroActual.NewCash-heroActual.Spend, bv:heroYoy.NewCash-heroYoy.Spend, fmt:fmtUSD, invert:false, pp:false, highlight:true};
+      // Real bug fixed 2026-08-18: this case was missing muted:true (unlike Lámina A's/Daily
+      // Tracker's own heroCell*() 'Impact' case, both correct) -- without it, the render logic a
+      // few lines below falls through to yoyMetricCell(), the normal actual/prior/%-change
+      // comparison format, exactly what Net Impact must never show (it's already a single
+      // difference, see yoyCellHtml's 'Impact' case / netImpactValue()'s own comment). Invisible
+      // on LatAm decks, which show Net Impact correctly via the country TABLE instead and rarely
+      // surface this specific hero tile's own bug -- Brazil decks have no table (single-hero
+      // layout), so this was the ONLY place they showed Net Impact, making the bug fully visible
+      // there. Same `netImpactValue()` the semaphore case right below already uses correctly.
+      case 'Impact': return {icon:'spark', label:'Net Impact', av:netImpactValue(heroActual,heroYoy), fmt:fmtUSD, muted:true, highlight:true};
       case 'LtvShort': return {icon:'tag', label:'LTV Short', av:ltvShort(heroActual), bv:ltvShort(heroYoy), fmt:fmtUSD, invert:false, pp:false};
       case 'FullUnitCmShort': return {icon:'tag', label:'Unit CM Short', av:fullUnitCmShort(heroActual), bv:fullUnitCmShort(heroYoy), fmt:fmtUSD, invert:false, pp:false, highlight:true};
       case 'FullCmPctShort': return {icon:'trend', label:'CM % Short', av:fullCmPct(heroActual), bv:fullCmPct(heroYoy), fmt:fmtPct, invert:false, pp:true, highlight:true};
