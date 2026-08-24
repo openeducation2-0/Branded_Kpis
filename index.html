@@ -391,6 +391,18 @@ body.login-mode #zoomGroup{display:none;}
 
 .cover .cover-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;max-width:820px;margin:auto;text-align:center;}
 .cover{justify-content:center;align-items:center;}
+/* Section-divider ("tapa") slides — Plantilla PPT Laminas.xlsx, Fase 1, 2026-08-24. Deliberately
+   its OWN class, not a reuse of `.cover` (which the comment above documents as "the ONLY slide
+   with a bespoke brand background" — an invariant this doesn't need to break) and its own title
+   styling, not `.shimmer-text` (that gradient is white-on-white by design, tuned for `.cover`'s
+   dark brand background — invisible on this slide's normal light/dark page background). Same
+   simple structural shape as slideCover() otherwise: no `.slide-inner`, no headerBlock(), just a
+   centered content column + the standard footer. */
+.section-divider{justify-content:center;align-items:center;}
+.section-divider .divider-content{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;max-width:820px;margin:auto;text-align:center;}
+.section-divider .divider-tag{font-size:var(--text-sm);letter-spacing:.22em;text-transform:uppercase;opacity:.7;font-weight:600;color:var(--brand-accent);}
+.section-divider .divider-title{font-family:var(--font-display);font-weight:800;font-size:clamp(2.6rem,6vw,4.4rem);letter-spacing:-.01em;margin-top:var(--space-3);color:var(--text-primary);}
+.section-divider .divider-desc{margin-top:var(--space-4);font-size:var(--text-xl);color:var(--text-secondary);max-width:640px;font-weight:300;}
 .cover .tag{font-size:var(--text-sm);letter-spacing:.22em;text-transform:uppercase;opacity:.85;font-weight:600;}
 .cover h1{font-family:var(--font-display);font-weight:800;font-size:clamp(3rem,7vw,5rem);letter-spacing:-.01em;margin-top:var(--space-3);}
 .cover .desc{margin-top:var(--space-4);font-size:var(--text-xl);opacity:.92;max-width:640px;font-weight:300;}
@@ -892,8 +904,8 @@ body.deck-mode #leftMenu.hover-visible{
 /* #groupMenu also needs a horizontal translateX(-50%) to stay centered (see below), so its
    show/hide animation uses `top` instead of `transform` — combining both in one `transform`
    value would mean the hover-visible rule clobbers the centering every time it toggles. */
-body.deck-mode #groupMenu, body.deck-mode #groupMenuDaily, body.deck-mode #groupMenuYoy{opacity:0;pointer-events:none;top:50px;transition:opacity .12s linear, top .12s linear;}
-body.deck-mode #groupMenu.hover-visible, body.deck-mode #groupMenuDaily.hover-visible, body.deck-mode #groupMenuYoy.hover-visible{opacity:1;pointer-events:auto;top:62px;}
+body.deck-mode #groupMenu, body.deck-mode #groupMenuDaily, body.deck-mode #groupMenuYoy, body.deck-mode #groupMenuWeekWow{opacity:0;pointer-events:none;top:50px;transition:opacity .12s linear, top .12s linear;}
+body.deck-mode #groupMenu.hover-visible, body.deck-mode #groupMenuDaily.hover-visible, body.deck-mode #groupMenuYoy.hover-visible, body.deck-mode #groupMenuWeekWow.hover-visible{opacity:1;pointer-events:auto;top:62px;}
 
 .hover-zone{position:fixed;top:0;height:70px;z-index:38;}
 .hover-zone.left{left:0;width:280px;}
@@ -908,10 +920,10 @@ body.home-mode .hover-zone{display:none;}
    #topControls (top-right) — putting the old per-slide gear button there made it fight with the
    EN/ES/theme hover-reveal for the same screen real estate and mouse path, so this lives
    top-CENTER instead. */
-body:not(.on-lamina-a):not(.on-lamina-daily):not(.on-lamina-yoy) .hover-zone.center,
-body:not(.on-lamina-a) #groupMenu, body:not(.on-lamina-daily) #groupMenuDaily, body:not(.on-lamina-yoy) #groupMenuYoy,
-body.home-mode .hover-zone.center, body.home-mode #groupMenu, body.home-mode #groupMenuDaily, body.home-mode #groupMenuYoy{display:none!important;}
-#groupMenu, #groupMenuDaily, #groupMenuYoy{
+body:not(.on-lamina-a):not(.on-lamina-daily):not(.on-lamina-yoy):not(.on-lamina-weekwow) .hover-zone.center,
+body:not(.on-lamina-a) #groupMenu, body:not(.on-lamina-daily) #groupMenuDaily, body:not(.on-lamina-yoy) #groupMenuYoy, body:not(.on-lamina-weekwow) #groupMenuWeekWow,
+body.home-mode .hover-zone.center, body.home-mode #groupMenu, body.home-mode #groupMenuDaily, body.home-mode #groupMenuYoy, body.home-mode #groupMenuWeekWow{display:none!important;}
+#groupMenu, #groupMenuDaily, #groupMenuYoy, #groupMenuWeekWow{
   position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:49;
   background:var(--bg-card);border:1px solid var(--border-soft);border-radius:var(--radius-lg);
   box-shadow:var(--shadow-lg);padding:var(--space-4);display:flex;gap:var(--space-6);min-width:460px;
@@ -1282,6 +1294,7 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
 <div id="groupMenu"></div>
 <div id="groupMenuDaily"></div>
 <div id="groupMenuYoy"></div>
+<div id="groupMenuWeekWow"></div>
 
 <div id="tutorialOverlay" class="tutorial-overlay" style="display:none">
   <div class="tutorial-blocker" id="tutorialBlocker"></div>
@@ -1342,6 +1355,63 @@ const DECKS = {
   'JR-LATAM': {brand:'OE Junior', region:'LatAm',  brandKey:'junior', slides:['cover','a','yoy']},
   'JR-BR':    {brand:'OE Junior', region:'Brazil', brandKey:'junior', slides:['cover','a','yoy']},
 };
+/* "Semana WOW" láminas — Plantilla PPT Laminas.xlsx, Fase 1 (2026-08-24). One entry per row of
+   that spreadsheet's "Hoja1" (rows 2-8, the 7 uniform "week" rows — the 3 "Promo" rows 9-11 are a
+   later phase, not built yet). Each row becomes 2 slides (a "tapa" divider + the actual WOW
+   lámina), appended to the END of its own deck's `slides` array (never inserted in the middle —
+   the reload-hash only stores a numeric slide INDEX, so inserting mid-array would silently point
+   old bookmarked hashes at the wrong slide). To add next month's rows: read the new rows from the
+   spreadsheet, append entries here (id/deckId/titles/dates), done — nothing else in this file
+   needs to change for a plain "week WOW" row like these 7.
+   Dates are hand-transcribed from the spreadsheet's own G column (year inferred as 2026 from the
+   file's own last-modified date, since the sheet only names the month). compareRange is always
+   actualRange shifted back 7 days — same arithmetic yoyActiveCompareRange()'s WOW branch already
+   uses (a 7-day shift never needs a weekday-alignment choice, unlike YOY/QOQ/MOM). */
+const WEEK_LAMINA_ROWS = [
+  { id:'oe-br-aug17-23', deckId:'OE-BR',
+    tapaId:'tapa-oe-br-aug17-23', laminaId:'week-oe-br-aug17-23',
+    tapaTitleEs:'OE Brasil · Semana 17-23 ago', tapaTitleEn:'OE Brazil · Week Aug 17-23',
+    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+  { id:'oe-br-aug24-30', deckId:'OE-BR',
+    tapaId:'tapa-oe-br-aug24-30', laminaId:'week-oe-br-aug24-30',
+    tapaTitleEs:'OE Brasil · Semana 24-30 ago', tapaTitleEn:'OE Brazil · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'} },
+  // Fila 4 del Excel dice "OE Brazil Week Aug 17-23" en la columna Tapa aunque la Marca es Junior
+  // (tomado literal, ver plan) -- distinta tapa de la fila 2 igual, porque Marca+Región+D son la
+  // identidad completa, y esta es Junior/Brazil, no OE/Brazil.
+  { id:'jr-br-aug17-23', deckId:'JR-BR',
+    tapaId:'tapa-jr-br-aug17-23', laminaId:'week-jr-br-aug17-23',
+    tapaTitleEs:'OE Brasil · Semana 17-23 ago', tapaTitleEn:'OE Brazil · Week Aug 17-23',
+    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+  { id:'jr-br-aug24-30', deckId:'JR-BR',
+    tapaId:'tapa-jr-br-aug24-30', laminaId:'week-jr-br-aug24-30',
+    tapaTitleEs:'JR Brasil · Semana 24-30 ago', tapaTitleEn:'JR Brazil · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'} },
+  { id:'oe-latam-aug17-23', deckId:'OE-LATAM',
+    tapaId:'tapa-oe-latam-aug17-23', laminaId:'week-oe-latam-aug17-23',
+    tapaTitleEs:'OE LatAm · Semana 17-23 ago', tapaTitleEn:'OE Latam · Week Aug 17-23',
+    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+  { id:'oe-latam-aug24-30', deckId:'OE-LATAM',
+    tapaId:'tapa-oe-latam-aug24-30', laminaId:'week-oe-latam-aug24-30',
+    tapaTitleEs:'OE LatAm · Semana 24-30 ago', tapaTitleEn:'OE Latam · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'} },
+  // Fila 8: "OE Latam Week Aug 17-23" en la columna Tapa aunque la Marca es Junior -- mismo caso
+  // que la fila 4, tomado literal.
+  { id:'jr-latam-aug17-23', deckId:'JR-LATAM',
+    tapaId:'tapa-jr-latam-aug17-23', laminaId:'week-jr-latam-aug17-23',
+    tapaTitleEs:'OE LatAm · Semana 17-23 ago', tapaTitleEn:'OE Latam · Week Aug 17-23',
+    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+];
+const WEEK_LAMINA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.laminaId));
+const WEEK_TAPA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.tapaId));
+WEEK_LAMINA_ROWS.forEach(r => { DECKS[r.deckId].slides.push(r.tapaId, r.laminaId); });
 function currentDeck(){ return DECKS[DECK_ID]; }
 const TOP8 = ["Colombia","Argentina","Chile","Costa Rica","Ecuador","Mexico","Peru","Other"];
 const COUNTRY_LABEL_ES = {Colombia:"Colombia",Argentina:"Argentina",Chile:"Chile","Costa Rica":"Costa Rica",Ecuador:"Ecuador",Mexico:"México",Peru:"Perú",Other:"Otros LatAm",Brazil:"Brasil"};
@@ -3436,7 +3506,7 @@ function wireHoverReveal(zoneEl, ...targets){
 }
 wireHoverReveal(document.getElementById('hzLeft'), document.getElementById('tocTrigger'), document.getElementById('leftMenu'));
 wireHoverReveal(document.getElementById('hzRight'), document.getElementById('topControls'));
-wireHoverReveal(document.getElementById('hzCenter'), document.getElementById('groupMenu'), document.getElementById('groupMenuDaily'), document.getElementById('groupMenuYoy'));
+wireHoverReveal(document.getElementById('hzCenter'), document.getElementById('groupMenu'), document.getElementById('groupMenuDaily'), document.getElementById('groupMenuYoy'), document.getElementById('groupMenuWeekWow'));
 document.getElementById('zoomOut').addEventListener('click', ()=>adjustZoom(-ZOOM_STEP));
 document.getElementById('zoomIn').addEventListener('click', ()=>adjustZoom(ZOOM_STEP));
 
@@ -3699,6 +3769,10 @@ function updateOnLaminaA(){
   document.body.classList.toggle('on-lamina-a', SLIDES[idx] && SLIDES[idx].id==='a');
   document.body.classList.toggle('on-lamina-daily', SLIDES[idx] && SLIDES[idx].id==='daily');
   document.body.classList.toggle('on-lamina-yoy', SLIDES[idx] && SLIDES[idx].id==='yoy');
+  // "Semana WOW" láminas (Plantilla PPT Laminas.xlsx, Fase 1, 2026-08-24) — same top-center menu
+  // slot pattern as a/daily/yoy, just N lámina instances instead of 1; renderGroupMenuWeekWow()
+  // itself figures out WHICH instance from SLIDES[idx].id.
+  document.body.classList.toggle('on-lamina-weekwow', SLIDES[idx] && WEEK_LAMINA_IDS.has(SLIDES[idx].id));
   updateZoomUi();
   const id = SLIDES[idx] && SLIDES[idx].id;
   if(id !== lastAutoFitId){
@@ -3898,6 +3972,22 @@ function slideCover(){
       <select id="monthSelect" class="month-select">${monthOptionsHtml(DATA.meta.month)}</select>
     </div>
     ${footerBar(true)}
+  </section>`;
+}
+/* Section-divider ("tapa") slide for the "Semana WOW" láminas — Plantilla PPT Laminas.xlsx, Fase 1
+   (2026-08-24). Same simple shape as slideCover() (no .slide-inner, no headerBlock(), just a
+   centered title block + the standard footer) but its own `.section-divider` class/typography —
+   see that CSS rule's own comment for why it doesn't reuse `.cover`/`.shimmer-text`. One shared
+   function, called once per WEEK_LAMINA_ROWS entry (see SLIDE_DEFS registration below) — a config
+   object in, never a hand-written function per row. */
+function tapaDividerSlide(row){
+  const d = currentDeck();
+  return `<section class="slide section-divider">
+    <div class="divider-content">
+      <div class="divider-tag">${d.brand} · ${regionLabel()}</div>
+      <div class="divider-title">${L(row.tapaTitleEs, row.tapaTitleEn)}</div>
+    </div>
+    ${footerBar(false)}
   </section>`;
 }
 
@@ -4630,6 +4720,305 @@ function slideYoy(){
   </div>${footerBar(false, {legend:yoyView.cols.NewCashSemaphore, legendYoy:true, centerExtra: mktOrgToggleYoy})}</section>`;
 }
 
+/* ================= "SEMANA WOW" LÁMINAS (Plantilla PPT Laminas.xlsx, Fase 1, 2026-08-24) =======
+   Each row of WEEK_LAMINA_ROWS gets its own independent view state (own visible columns, own
+   weekday filter) — same "each lámina owns its state" pattern as dailyTrackerCols/yoyView.cols,
+   deliberately NOT sharing yoyView/yoyCustomRange (mixing this filter with the real YoY lámina's
+   own would be a real bug: filtering one would silently filter the other too). */
+const LS_WEEK_LAMINA_STATE = 'brandedkpis_weeklamina_state_v1';
+let weekLaminaState = {};
+WEEK_LAMINA_ROWS.forEach(r => {
+  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null };
+});
+(function loadWeekLaminaState(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LS_WEEK_LAMINA_STATE)||'null');
+    if(saved) Object.keys(weekLaminaState).forEach(id => { if(saved[id]) Object.assign(weekLaminaState[id], saved[id]); });
+  }catch(e){}
+})();
+function saveWeekLaminaState(){ localStorage.setItem(LS_WEEK_LAMINA_STATE, JSON.stringify(weekLaminaState)); }
+// Which lámina instance the (single, shared) #groupMenuWeekWow slot currently describes — set by
+// renderGroupMenuWeekWow() itself from the currently-visible slide, same "figure out who's active"
+// idea as yoyView/dailyTrackerCols being globals, just resolved per-render instead of being the
+// only lámina of its kind.
+let currentWeekLaminaId = null;
+
+/* Weekday label for a FIXED range + an explicit weekday Set — same logic as weekdayRangeLabel(),
+   forked because that one reads the global yoyCustomRange.weekdays directly (right for the real
+   YoY lámina, wrong here — these láminas must never react to YoY's own filter). */
+function weekLaminaWeekdayLabel(periodStart, periodEnd, weekdaySet){
+  const periodDays = periodWeekdaysIfShort(periodStart, periodEnd);
+  let days = periodDays
+    ? [...periodDays].filter(d => !weekdaySet || weekdaySet.has(d))
+    : (weekdaySet ? [...weekdaySet] : [0,1,2,3,4,5,6]);
+  days.sort((a,b)=>a-b);
+  if(!days.length) return null;
+  if(!periodDays && days.length===7) return null;
+  if(days.length===7) return {es:'Lun-Dom', en:'Mon-Sun'};
+  const mondayFirst = days.map(d => d===0?7:d).sort((a,b)=>a-b);
+  const isContiguous = days.length>1 && mondayFirst.every((d,i)=> i===0 || d===mondayFirst[i-1]+1);
+  if(isContiguous){
+    const first = mondayFirst[0]===7?0:mondayFirst[0], last = mondayFirst[mondayFirst.length-1]===7?0:mondayFirst[mondayFirst.length-1];
+    return {es:`${WD_ABBR_ES[first]}-${WD_ABBR_ES[last]}`, en:`${WD_ABBR_EN[first]}-${WD_ABBR_EN[last]}`};
+  }
+  return {es: days.map(d=>WD_ABBR_ES[d]).join(', '), en: days.map(d=>WD_ABBR_EN[d]).join(', ')};
+}
+/* Weekday multi-select, own drag-state (never shares weekdayDragState with the real YoY selector)
+   — same 2 interaction styles as weekdaySelectorHtml()/wireWeekdaySelector(): plain click+drag sets
+   a contiguous range, Ctrl/Cmd+click toggles one day. Column J of the spreadsheet asks for exactly
+   this ("ver cada día por separado y selección múltiple"), and this is the pattern that already
+   supports it — forked instead of reused because it's tied to yoyCustomRange.weekdays. */
+let weekLaminaDragState = null;
+document.addEventListener('mouseup', ()=>{ weekLaminaDragState = null; });
+function weekLaminaWeekdaySelectorHtml(laminaId){
+  const labels = {0:L('Dom','Sun'),1:L('Lun','Mon'),2:L('Mar','Tue'),3:L('Mié','Wed'),4:L('Jue','Thu'),5:L('Vie','Fri'),6:L('Sáb','Sat')};
+  const row = WEEK_LAMINA_ROWS.find(r=>r.laminaId===laminaId);
+  const state = weekLaminaState[laminaId];
+  const selected = new Set(state.weekdays || [0,1,2,3,4,5,6]);
+  const enabledSet = periodWeekdaysIfShort(row.actualRange.start, row.actualRange.end);
+  return `<div class="weekday-selector" id="weekLaminaWeekdaySelector">
+    ${WD_VISUAL_ORDER.map((d,i)=>{
+      const isEnabled = !enabledSet || enabledSet.has(d);
+      return `<button type="button" class="wd-btn${selected.has(d)?' on':''}" data-wd="${d}" data-vidx="${i}"${isEnabled?'':' disabled'}>${labels[d]}</button>`;
+    }).join('')}
+  </div>`;
+}
+function wireWeekLaminaWeekdaySelector(container, laminaId, onChange){
+  const buttons = () => Array.from(container.querySelectorAll('.wd-btn'));
+  const row = WEEK_LAMINA_ROWS.find(r=>r.laminaId===laminaId);
+  const state = weekLaminaState[laminaId];
+  const enabledSet = periodWeekdaysIfShort(row.actualRange.start, row.actualRange.end);
+  const currentSet = () => new Set(state.weekdays || [0,1,2,3,4,5,6]);
+  const applySelection = (set) => {
+    if(enabledSet) set = new Set([...set].filter(d=>enabledSet.has(d)));
+    const fullyOpen = enabledSet ? set.size===enabledSet.size : set.size===7;
+    state.weekdays = (fullyOpen || set.size===0) ? null : Array.from(set).sort();
+    buttons().forEach(b => b.classList.toggle('on', set.has(Number(b.dataset.wd))));
+    onChange();
+  };
+  buttons().forEach(btn=>{
+    if(btn.disabled) return;
+    const day = Number(btn.dataset.wd);
+    const vidx = Number(btn.dataset.vidx);
+    btn.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      if(e.ctrlKey || e.metaKey){
+        const set = currentSet();
+        if(set.has(day)) set.delete(day); else set.add(day);
+        weekLaminaDragState = {mode:'toggle', touched:new Set([day])};
+        applySelection(set);
+      } else {
+        weekLaminaDragState = {mode:'range', startVidx:vidx};
+        applySelection(new Set([day]));
+      }
+    });
+    btn.addEventListener('mouseenter', ()=>{
+      if(!weekLaminaDragState) return;
+      if(weekLaminaDragState.mode==='toggle'){
+        if(weekLaminaDragState.touched.has(day)) return;
+        weekLaminaDragState.touched.add(day);
+        const set = currentSet();
+        if(set.has(day)) set.delete(day); else set.add(day);
+        applySelection(set);
+      } else {
+        const lo = Math.min(weekLaminaDragState.startVidx, vidx), hi = Math.max(weekLaminaDragState.startVidx, vidx);
+        const set = new Set(WD_VISUAL_ORDER.slice(lo, hi+1));
+        applySelection(set);
+      }
+    });
+  });
+}
+
+/* The "Semana WOW" lámina itself — deliberately NOT built by calling into slideYoy() (several of
+   its rendering pieces, e.g. yoyCellHtml/heroCellYoy, are closures DEFINED INSIDE slideYoy(), so
+   they can't be invoked from outside it; refactoring slideYoy() to expose them would risk the
+   real YoY lámina to fix something unrelated). Instead, same fix as this file's own
+   mktOrgMetricCell() — "a module-scope mirror of yoyCellHtml()'s switch... duplicated in vez de
+   reusado directamente porque yoyCellHtml es closure-scoped dentro de slideYoy()" — this function
+   is that same kind of mirror, one level up (a whole lámina, not just one switch), built ONLY from
+   already-shared, already-module-scope helpers (yoyMetricCell, aggregateYoyDaily, netImpactValue,
+   COL_DEFS/YOY_COL_DEFS, etc.) — same numbers, same visual format as YoY, zero risk to slideYoy().
+   Unlike slideYoy(), the actual/compare ranges are FIXED (row.actualRange/row.compareRange, from
+   the spreadsheet) — no category picker, no manual dates — the only thing left interactive is the
+   weekday filter (weekLaminaState) and the Vista/Columnas panel, both wired from
+   renderGroupMenuWeekWow() below. Country-name click-to-open-MarketingOrg-modal (YoY's own item 7)
+   is intentionally NOT wired here — out of Fase 1 scope, can be added later if asked. */
+function weekWowSlide(row){
+  const isBrazil = currentDeck().region === 'Brazil';
+  const showMergedBrazil = !isBrazil && DECK_ID==='OE-LATAM' && includeBrazil;
+  const countries = isBrazil ? ['Brazil'] : (showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER, 'Brazil'] : DAILY_TRACKER_ROW_ORDER);
+  const emptyRow = {Spend:0,Leads:0,Sales:0,NewCash:0,FullCM:0,ProjRevShort:0,TotalEnrollments:0,MediaSpend:0,PaidOrganicSpend:0};
+
+  const state = weekLaminaState[row.laminaId];
+  const weekdaySet = (state.weekdays && state.weekdays.length) ? new Set(state.weekdays) : null;
+  // yoyDailyRowsForDeck() already folds OE-BR's own rows in when includeBrazil is on (OE-LATAM
+  // only) — same "Brazil is just one more country" pool every other lámina reads, no extra
+  // merge logic needed here (see that function's own comment).
+  const actualByCountry = aggregateYoyDaily(yoyDailyRowsForDeck('current'), row.actualRange.start, row.actualRange.end, weekdaySet);
+  const compareByCountry = aggregateYoyDaily(yoyDailyRowsForDeck('prior'), row.compareRange.start, row.compareRange.end, weekdaySet);
+  const actualFor = c => (isBrazil ? actualByCountry['Brazil'] : actualByCountry[c]) || emptyRow;
+  const yoyFor = c => (isBrazil ? compareByCountry['Brazil'] : compareByCountry[c]) || emptyRow;
+
+  const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
+  const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
+
+  const heroColsWeek = (isBrazil ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare') : HERO_COL_DEFS).filter(c=> state.cols[c.key]);
+  const yCols = YOY_COL_DEFS.filter(c=> state.cols[c.key]);
+  const yGridTemplate = `1.25fr ${yCols.map(c=>c.weight+'fr').join(' ')}`;
+
+  // Mirror of yoyCellHtml() — see this function's own top comment for why it's a duplicate, not a
+  // call into slideYoy()'s own closure-scoped version. Kept byte-for-byte equivalent on purpose.
+  function weekCellHtml(key, a, b, country){
+    switch(key){
+      case 'Spend': return yoyMetricCell(a.Spend, b.Spend, fmtUSD, true, false, null, true);
+      case 'MediaSpend': return yoyMetricCell(a.MediaSpend, b.MediaSpend, fmtUSD, true, false, null, true);
+      case 'SpendShare': { const s = heroActual.Spend ? a.Spend/heroActual.Spend : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
+      case 'Leads': return yoyMetricCell(a.Leads, b.Leads, fmtNum, false, false);
+      case 'Sales': return yoyMetricCell(a.Sales, b.Sales, fmtNum, false, false);
+      case 'LeadsShare': { const s = heroActual.Leads ? a.Leads/heroActual.Leads : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
+      case 'SalesShare': { const s = heroActual.Sales ? a.Sales/heroActual.Sales : null; return `<div class="metric-cell muted"><div class="mc-actual">${fmtPct(s)}</div></div>`; }
+      case 'CPL': return yoyMetricCell(cpl(a), cpl(b), fmtUSD, true, false);
+      case 'MediaCPL': return yoyMetricCell(mediaCpl(a), mediaCpl(b), fmtUSD, true, false);
+      case 'Conversion': return yoyMetricCell(conversionRate(a), conversionRate(b), fmtPctConversion, false, true);
+      case 'CMPS': return yoyMetricCell(cmps(a), cmps(b), fmtUSD, true, false);
+      case 'AvgPrice': return yoyMetricCell(avgPrice(a), avgPrice(b), fmtUSD, false, false);
+      case 'MarginPct': return yoyMetricCell(mncc(a), mncc(b), fmtPct, false, true);
+      case 'NewCash': return yoyMetricCell(a.NewCash, b.NewCash, fmtUSD, false, false);
+      case 'NewCashSemaphore': return netImpactTemperatureCell(netImpactValue(a,b), country==='Costa Rica');
+      case 'Impact': { const v = (a.NewCash-b.NewCash)-(a.Spend-b.Spend); return `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(v)}">${fmtUSD(v)}</div></div>`; }
+      case 'LtvShort': return yoyMetricCell(ltvShort(a), ltvShort(b), fmtUSD, false, false);
+      case 'FullUnitCmShort': return yoyMetricCell(fullUnitCmShort(a), fullUnitCmShort(b), fmtUSD, false, false);
+      case 'FullCmPctShort': return yoyMetricCell(fullCmPct(a), fullCmPct(b), fmtPct, false, true, mcPctSignClass(fullCmPct(a)));
+      case 'PaidOrganicSpend': return yoyMetricCell(a.PaidOrganicSpend, b.PaidOrganicSpend, fmtUSD, false, false, null, true);
+    }
+  }
+  // Mirror of heroCellYoy() — same reasoning as weekCellHtml() above.
+  function weekHeroCell(key){
+    switch(key){
+      case 'Spend': return {icon:'wallet', label:'Spend', av:heroActual.Spend, bv:heroYoy.Spend, fmt:fmtUSD, invert:true, pp:false};
+      case 'MediaSpend': return {icon:'wallet', label:'Media Spend', av:heroActual.MediaSpend, bv:heroYoy.MediaSpend, fmt:fmtUSD, invert:true, pp:false};
+      case 'PaidOrganicSpend': return {icon:'wallet', label:L('Paid Social + Organic','Paid Social + Organic'), av:heroActual.PaidOrganicSpend, bv:heroYoy.PaidOrganicSpend, fmt:fmtUSD, invert:false, pp:false};
+      case 'Leads': return {icon:'gauge', label:'Leads', av:heroActual.Leads, bv:heroYoy.Leads, fmt:fmtNum, invert:false, pp:false};
+      case 'Sales': return {icon:'tag', label:L('Ventas','Sales'), av:heroActual.Sales, bv:heroYoy.Sales, fmt:fmtNum, invert:false, pp:false};
+      case 'CPL': return {icon:'gauge', label:'CPL', av:cpl(heroActual), bv:cpl(heroYoy), fmt:fmtUSD, invert:true, pp:false};
+      case 'MediaCPL': return {icon:'gauge', label:'Media CPL', av:mediaCpl(heroActual), bv:mediaCpl(heroYoy), fmt:fmtUSD, invert:true, pp:false};
+      case 'Conversion': return {icon:'trend', label:L('Conversión','Conversion'), av:conversionRate(heroActual), bv:conversionRate(heroYoy), fmt:fmtPctConversion, invert:false, pp:true};
+      case 'CMPS': return {icon:'tag', label:'CMPS', av:cmps(heroActual), bv:cmps(heroYoy), fmt:fmtUSD, invert:true, pp:false};
+      case 'AvgPrice': return {icon:'tag', label:L('Precio Prom.','Avg Price'), av:avgPrice(heroActual), bv:avgPrice(heroYoy), fmt:fmtUSD, invert:false, pp:false};
+      case 'MarginPct': return {icon:'trend', label:'% MNCC', av:mncc(heroActual), bv:mncc(heroYoy), fmt:fmtPct, invert:false, pp:true};
+      case 'NewCash': return {icon:'wallet', label:'New Cash Core', av:heroActual.NewCash, bv:heroYoy.NewCash, fmt:fmtUSD, invert:false, pp:false, highlight:true};
+      case 'Impact': return {icon:'spark', label:'Net Impact', av:netImpactValue(heroActual,heroYoy), fmt:fmtUSD, muted:true, highlight:true};
+      case 'LtvShort': return {icon:'tag', label:'LTV Short', av:ltvShort(heroActual), bv:ltvShort(heroYoy), fmt:fmtUSD, invert:false, pp:false};
+      case 'FullUnitCmShort': return {icon:'tag', label:'Unit CM Short', av:fullUnitCmShort(heroActual), bv:fullUnitCmShort(heroYoy), fmt:fmtUSD, invert:false, pp:false, highlight:true};
+      case 'FullCmPctShort': return {icon:'trend', label:'CM % Short', av:fullCmPct(heroActual), bv:fullCmPct(heroYoy), fmt:fmtPct, invert:false, pp:true, highlight:true};
+      case 'NewCashSemaphore': return {icon:'trend', label:L('Net Impact Temperature','Net Impact Temperature'), av:netImpactValue(heroActual,heroYoy), semaphore:true};
+    }
+  }
+  const bhKpisWeek = heroColsWeek.map(c=>{
+    const h = weekHeroCell(c.key);
+    const signCls = c.key==='FullCmPctShort' ? mcPctSignClass(h.av) : '';
+    const cell = h.semaphore
+      ? netImpactTemperatureCell(h.av)
+      : h.muted
+        ? `<div class="metric-cell muted"><div class="mc-actual ${mcPctSignClass(h.av)}">${h.fmt(h.av)}</div></div>`
+        : yoyMetricCell(h.av,h.bv,h.fmt,h.invert,h.pp,signCls,isSpendNeutralMetric(c.key));
+    return `<div class="bh-kpi${h.highlight?' highlight':''}${h.semaphore||h.muted?' muted':''}" data-metric="${c.key}"><div><div class="label">${h.label}</div>${cell}</div></div>`;
+  }).join('');
+  function countryRowWeek(c){
+    const isSubtotal = c === REST_LATAM_SUBTOTAL_KEY;
+    const a = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(actualFor), DAILY_TRACKER_FIELDS) : actualFor(c);
+    const b = isSubtotal ? sumDailyTrackerFields(REST_LATAM_SUBTOTAL_COUNTRIES.map(yoyFor), DAILY_TRACKER_FIELDS) : yoyFor(c);
+    const cells = yCols.map((col,i)=> `<div class="metric-col${col.highlight?' highlight':''}${colDividerCls(yCols,i)}" data-metric="${col.key}">${weekCellHtml(col.key,a,b,c)}</div>`).join('');
+    const label = isSubtotal ? 'LT Excl. MX & AR' : (LANG==='es' ? COUNTRY_LABEL_ES[c] : COUNTRY_LABEL_EN[c]);
+    const deemphasized = c === 'Costa Rica';
+    const isMergedBrazil = c === 'Brazil' && showMergedBrazil;
+    const nameHtml = isSubtotal
+      ? `<div class="ch-name">${iconChip('globe','var(--brand-accent)')}<div class="ch-text"><h4>${label}</h4></div></div>`
+      : `<div class="ch-name">${flagIcon(c)}<div class="ch-text"><h4>${label}</h4></div></div>`;
+    return `<div class="ch-row no-click${deemphasized?' deemphasized':''}${isSubtotal?' subtotal-row':''}${isMergedBrazil?' merged-brazil-row':''}" style="grid-template-columns:${yGridTemplate}">
+      ${nameHtml}
+      ${cells}
+    </div>`;
+  }
+  const displayRowsWeek = showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER_DISPLAY, 'Brazil'] : DAILY_TRACKER_ROW_ORDER_DISPLAY;
+  const rowsHtmlWeek = isBrazil ? countryRowWeek('Brazil') : displayRowsWeek.map(countryRowWeek).join('');
+  const headerCellsWeek = yCols.map((c,i)=>`<div class="metric-col${colDividerCls(yCols,i)}">${colLabelYoy(c.key)}</div>`).join('');
+
+  const actualRangeLabel = fmtYoyRange(row.actualRange);
+  const compareRangeLabel = fmtYoyRange(row.compareRange);
+  const heroSubWeek = isBrazil
+    ? `${flagIcon('Brazil')} ${L(`Brasil · vs ${compareRangeLabel.es}`,`Brazil · vs ${compareRangeLabel.en}`)}`
+    : L(`Consolidado ${regionLabel()} · vs ${compareRangeLabel.es}`,`Consolidated ${regionLabel()} · vs ${compareRangeLabel.en}`);
+  const deckLabelWeek = `${currentDeck().brand} · ${regionLabel()}`;
+  const weekdayLabel = weekLaminaWeekdayLabel(row.actualRange.start, row.actualRange.end, weekdaySet);
+  const weekdayPrefixEs = weekdayLabel ? `${weekdayLabel.es}: ` : '';
+  const weekdayPrefixEn = weekdayLabel ? `${weekdayLabel.en}: ` : '';
+  const subtitleEs = `${weekdayPrefixEs}${deckLabelWeek} · ${actualRangeLabel.es} vs ${compareRangeLabel.es} · WOW`;
+  const subtitleEn = `${weekdayPrefixEn}${deckLabelWeek} · ${actualRangeLabel.en} vs ${compareRangeLabel.en} · WOW`;
+
+  const heroBlockHtmlWeek = `
+      <div class="blended-hero daily-hero no-click">
+        <div class="bh-head"><span class="bh-badge">${L('Brand TV Channels','Brand TV Channels')}</span><span class="bh-sub">${heroSubWeek}</span></div>
+        <div class="bh-kpis" style="grid-template-columns:${heroColsWeek.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpisWeek}</div>
+      </div>`;
+  const bodyHtmlWeek = isBrazil ? heroBlockHtmlWeek : `${heroBlockHtmlWeek}
+      <div class="detail-label daily-detail-label">${L('Detalle por país','Detail by country')}</div>
+      <div class="channel-table daily-table">
+        <div class="ch-header-row" style="grid-template-columns:${yGridTemplate}"><div></div>${headerCellsWeek}</div>
+        ${rowsHtmlWeek}
+      </div>`;
+  return `<section class="slide slide-weekwow${isBrazil?' slide-daily-br':''}" style="--slide-zoom:${getZoom(row.laminaId)}"><div class="slide-inner">
+    ${headerBlock('s-'+row.laminaId, row.laminaTitleEs, row.laminaTitleEn, subtitleEs, subtitleEn)}
+    <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlWeek}
+    </div>
+  </div>${footerBar(false, {legend: state.cols.NewCashSemaphore, legendYoy:true})}</section>`;
+}
+function refreshSlideWeekWow(laminaId){
+  const idx = SLIDES.findIndex(s=>s.id===laminaId);
+  if(idx<0) return;
+  const row = WEEK_LAMINA_ROWS.find(r=>r.laminaId===laminaId);
+  document.querySelectorAll('.slide')[idx].outerHTML = weekWowSlide(row);
+  fitHeroDeltas(laminaId);
+  if(!autoFitBusy) applyAutoFit(laminaId);
+}
+/* Single shared #groupMenuWeekWow slot (see its own div/CSS comments) — figures out which of the
+   N week-láminas is currently on screen from SLIDES itself (mirrors how updateOnLaminaA() detects
+   "are we on lamina yoy/a/daily"), same "one menu, current-state-dependent content" idea as
+   renderGroupMenuYoy(), just resolved fresh each render instead of being the only lámina of its
+   kind. No rango-personalizado panel here on purpose (explicit ask) — only Vistas/Columnas
+   (identical to YoY's own) + the weekday multi-select (see weekLaminaWeekdaySelectorHtml()). */
+function renderGroupMenuWeekWow(){
+  const menu = document.getElementById('groupMenuWeekWow');
+  const idx = SLIDES.findIndex(s=> WEEK_LAMINA_IDS.has(s.id));
+  if(idx<0){ menu.innerHTML=''; currentWeekLaminaId=null; return; }
+  const laminaId = SLIDES[idx].id;
+  currentWeekLaminaId = laminaId;
+  const state = weekLaminaState[laminaId];
+  const colsHtml = YOY_COL_DEFS.map(c=>
+    `<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`
+  ).join('');
+  menu.innerHTML = `
+    <div class="group-menu-col">
+      <div class="side-menu-header">${L('Columnas','Columns')}</div>
+      ${colsHtml}
+    </div>
+    <div class="group-menu-col">
+      <div class="side-menu-header">${L('Filtrar por día de semana','Filter by weekday')}</div>
+      ${weekLaminaWeekdaySelectorHtml(laminaId)}
+    </div>`;
+  menu.querySelectorAll('input[data-week-col]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      state.cols[e.target.dataset.weekCol] = e.target.checked;
+      saveWeekLaminaState();
+      refreshSlideWeekWow(laminaId);
+    });
+  });
+  wireWeekLaminaWeekdaySelector(menu.querySelector('#weekLaminaWeekdaySelector'), laminaId, ()=>{
+    saveWeekLaminaState();
+    refreshSlideWeekWow(laminaId);
+  });
+}
+
 /* ---------------- BUILD / RENDER ---------------- */
 /* Every slide this project knows how to build, keyed by id. Which of these actually appear in
    a given deck is decided by DECKS[deckId].slides (see enterDeck()) — SLIDES itself is `let`,
@@ -4642,6 +5031,14 @@ const SLIDE_DEFS = {
   daily: {id:'daily', fn:slideDaily, es:'MTD Branded KPIs vs Forecast By Country', en:'MTD Branded KPIs vs Forecast By Country'},
   yoy:   {id:'yoy', fn:slideYoy, es:'Comparativo YoY por País', en:'YoY Comparison by Country'},
 };
+// "Semana WOW" tapas + láminas (Plantilla PPT Laminas.xlsx, Fase 1) — registered from
+// WEEK_LAMINA_ROWS instead of hand-written per row, so a future month's new rows only need a new
+// entry in that array, never a new function or a new registration line here.
+WEEK_LAMINA_ROWS.forEach(r => {
+  SLIDE_DEFS[r.tapaId] = {id:r.tapaId, fn:()=>tapaDividerSlide(r), es:r.tapaTitleEs, en:r.tapaTitleEn};
+  SLIDE_DEFS[r.laminaId] = {id:r.laminaId, fn:()=>weekWowSlide(r), es:r.laminaTitleEs, en:r.laminaTitleEn};
+  ZOOMABLE_SLIDES[r.laminaId] = () => refreshSlideWeekWow(r.laminaId);
+});
 let SLIDES = DECKS['OE-LATAM'].slides.map(k=>SLIDE_DEFS[k]);
 
 function buildDeck(){ SLIDES = currentDeck().slides.map(k=>SLIDE_DEFS[k]); renderDeck(); }
@@ -4658,6 +5055,7 @@ function renderDeck(){
   renderGroupMenu();
   renderGroupMenuDaily();
   renderGroupMenuYoy();
+  renderGroupMenuWeekWow();
   updateOnLaminaA();
 }
 
