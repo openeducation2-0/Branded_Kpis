@@ -756,6 +756,12 @@ body.login-mode #zoomGroup{display:none;}
    (color-mix reads the CSS variable at whatever value the current theme has it). */
 .ch-row.week-lamina-highlight{background:color-mix(in srgb, var(--brand-accent) 8%, transparent);border-left:3px solid var(--brand-accent);padding-left:calc(var(--space-5) - 2px);}
 .ch-row.week-lamina-highlight .ch-name h4{font-weight:800;color:var(--brand-accent);}
+/* Footer button, "Semana WOW" láminas — toggles the marketing-type-by-country detail view
+   (footerBar's `rightExtra` slot, right next to the OE logo — the one place the user asked for
+   it: "un botón abajo al lado del logo de Open English"). */
+.week-lamina-detail-btn{border:1px solid var(--border-soft);background:var(--bg-card);color:var(--text-secondary);border-radius:var(--radius-full);padding:5px 14px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;transition:.15s;}
+.week-lamina-detail-btn:hover{border-color:var(--brand-accent);color:var(--text-primary);}
+.week-lamina-detail-btn.on{background:var(--brand-accent);color:#fff;border-color:var(--brand-accent);}
 /* Daily Tracker por País has up to 8 rows (vs Lámina A's usual 4-6) in the same reserved
    vertical budget — tighter row padding/gap than Lámina A, same font sizes (never shrink text,
    per explicit ask: "que la letra sea grande... más compacto" applies to spacing, not type).
@@ -939,6 +945,10 @@ body.home-mode .hover-zone.center, body.home-mode #groupMenu, body.home-mode #gr
   display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-primary);padding:5px 4px;cursor:pointer;white-space:nowrap;
 }
 .group-menu-col label input{cursor:pointer;}
+/* "Semana WOW" láminas — Columnas bloqueada mientras el detalle de marketing type está activo. */
+.group-menu-col label.menu-locked{opacity:.45;cursor:not-allowed;}
+.group-menu-col label.menu-locked input{cursor:not-allowed;}
+.menu-locked-note{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text-secondary);opacity:.8;}
 
 /* ============ ONBOARDING TUTORIAL ============ */
 /* Spotlight coachmark: a full-page transparent blocker (catches/kills clicks on the real page
@@ -1393,7 +1403,8 @@ const WEEK_LAMINA_ROWS = [
     tapaId:'tapa-oe-br-aug17-23', laminaId:'week-oe-br-aug17-23',
     tapaTitleEs:'OE Brasil · Semana 17-23 ago', tapaTitleEn:'OE Brazil · Week Aug 17-23',
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-23'} },
   // Fila 4 del Excel dice "OE Brazil Week Aug 17-23" en la columna Tapa aunque la Marca es Junior
   // -- corregido a "JR" aquí (2026-08-24, tras la confusión real que causó dejarlo literal): la
   // identidad de la tapa (Marca+Región+D) sigue siendo la de esta fila, solo se arregló el texto
@@ -1402,18 +1413,21 @@ const WEEK_LAMINA_ROWS = [
     tapaId:'tapa-jr-br-aug17-23', laminaId:'week-jr-br-aug17-23',
     tapaTitleEs:'JR Brasil · Semana 17-23 ago', tapaTitleEn:'JR Brazil · Week Aug 17-23',
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-23'} },
   { id:'oe-latam-aug17-23', deckId:'OE-LATAM',
     tapaId:'tapa-oe-latam-aug17-23', laminaId:'week-oe-latam-aug17-23',
     tapaTitleEs:'OE LatAm · Semana 17-23 ago', tapaTitleEn:'OE Latam · Week Aug 17-23',
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-23'} },
   // Fila 8: mismo caso que la fila 4, corregido igual.
   { id:'jr-latam-aug17-23', deckId:'JR-LATAM',
     tapaId:'tapa-jr-latam-aug17-23', laminaId:'week-jr-latam-aug17-23',
     tapaTitleEs:'JR LatAm · Semana 17-23 ago', tapaTitleEn:'JR Latam · Week Aug 17-23',
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'} },
+    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-23'} },
   // Fila 9: "Ocultar Mexico porque tenia otra promo" (columna I) -- México corría una promo
   // distinta esos días, no es comparable al resto, se excluye por completo (hero y tabla).
   { id:'oe-latam-oferta-especial', deckId:'OE-LATAM',
@@ -1421,6 +1435,10 @@ const WEEK_LAMINA_ROWS = [
     tapaTitleEs:'Oferta Especial - 12-23 ago, 2026', tapaTitleEn:'Oferta Especial - Aug 12-23, 2026',
     laminaTitleEs:'¿Desgaste en semana 2 de Oferta Especial?', laminaTitleEn:'Wear Out on Oferta Especial Week 2?',
     actualRange:{start:'2026-08-19', end:'2026-08-20'}, compareRange:{start:'2026-08-12', end:'2026-08-13'},
+    // tapaRange usa el rango de la PROPIA columna D ("Aug 12-23"), no el de G (Aug 19-20) -- lo
+    // primero decide en qué orden aparece la sección entera; lo segundo es solo lo que ESTA lámina
+    // analiza dentro de esa sección.
+    tapaRange:{start:'2026-08-12', end:'2026-08-23'},
     hideCountries:['Mexico'] },
   // Filas 10-11: MISMA tapa (columna D idéntica), 2 láminas distintas debajo -- México es el país
   // de la promo (columna I: "debe estar resaltado"), comparado contra el benchmark "Latam excl MX
@@ -1431,6 +1449,7 @@ const WEEK_LAMINA_ROWS = [
     tapaTitleEs:'México 60% Off + Stanley Promo - 17-21 ago, 2026', tapaTitleEn:'Mexico 60% Off + Stanley Promo - Aug 17-21, 2026',
     laminaTitleEs:'60% Off+Stanley Promo vs TV Off (Paid Social On)', laminaTitleEn:'60% Off+Stanley Promo vs TV Off (Paid Social On)',
     actualRange:{start:'2026-08-17', end:'2026-08-21'}, compareRange:{start:'2026-08-10', end:'2026-08-14'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-21'},
     highlightCountries:['Mexico'], benchmarkCountries:LATAM_EXCL_MX_AR_CO,
     benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO' },
   { id:'oe-latam-mexico-stanley-vs60', deckId:'OE-LATAM',
@@ -1438,6 +1457,7 @@ const WEEK_LAMINA_ROWS = [
     tapaTitleEs:'México 60% Off + Stanley Promo - 17-21 ago, 2026', tapaTitleEn:'Mexico 60% Off + Stanley Promo - Aug 17-21, 2026',
     laminaTitleEs:'60% Off+Stanley Promo vs 60% Off', laminaTitleEn:'60% Off+Stanley Promo vs 60% Off',
     actualRange:{start:'2026-08-17', end:'2026-08-21'}, compareRange:{start:'2026-07-27', end:'2026-07-31'},
+    tapaRange:{start:'2026-08-17', end:'2026-08-21'},
     // Columna H de esta fila nombra una fecha EXPLÍCITA ("July 27-31"), no "WOW" -- único caso de
     // estos 7 sin comparación de 7 días atrás; el subtítulo debe decirlo, no mostrar "WOW" a secas.
     compareLabelEs:'Personalizado', compareLabelEn:'Custom',
@@ -1448,11 +1468,26 @@ const WEEK_LAMINA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.laminaId));
 const WEEK_TAPA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.tapaId));
 // Some rows share ONE tapaId (rows 10/11 of the sheet -- same portada, 2 láminas under it) --
 // push each tapa only once, right before the first lámina that references it.
+// Sections (tapa + its 1-N láminas) are appended to each deck in DATE order, earliest first --
+// explicit ask 2026-08-24: "las láminas deben aparecer desde la menor fecha hasta la mayor fecha".
+// Groups rows sharing one tapaId into a single unit first (so a multi-lámina section like
+// Mexico Stanley's never gets split apart by the sort), sorts each deck's OWN units by that
+// section's tapaRange.start, then flattens back into DECKS[deckId].slides. Stable sort (mandated
+// by the JS spec) keeps 2 same-start sections in their original spreadsheet-row order, same as it
+// already did before this ask existed -- nothing to configure for that case.
 (function registerWeekLaminaSlides(){
-  const pushedTapaIds = new Set();
+  const sections = [];
+  const byTapa = new Map();
   WEEK_LAMINA_ROWS.forEach(r => {
-    if(!pushedTapaIds.has(r.tapaId)){ DECKS[r.deckId].slides.push(r.tapaId); pushedTapaIds.add(r.tapaId); }
-    DECKS[r.deckId].slides.push(r.laminaId);
+    let section = byTapa.get(r.tapaId);
+    if(!section){ section = {deckId:r.deckId, tapaId:r.tapaId, start:r.tapaRange.start, laminaIds:[]}; byTapa.set(r.tapaId, section); sections.push(section); }
+    section.laminaIds.push(r.laminaId);
+  });
+  const byDeck = {};
+  sections.forEach(s => { (byDeck[s.deckId] = byDeck[s.deckId] || []).push(s); });
+  Object.values(byDeck).forEach(deckSections => {
+    deckSections.sort((a,b) => a.start<b.start ? -1 : a.start>b.start ? 1 : 0);
+    deckSections.forEach(s => { DECKS[s.deckId].slides.push(s.tapaId, ...s.laminaIds); });
   });
 })();
 function currentDeck(){ return DECKS[DECK_ID]; }
@@ -4779,7 +4814,7 @@ function slideYoy(){
 const LS_WEEK_LAMINA_STATE = 'brandedkpis_weeklamina_state_v1';
 let weekLaminaState = {};
 WEEK_LAMINA_ROWS.forEach(r => {
-  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: false };
+  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: false, marketingTypeMode: false };
 });
 (function loadWeekLaminaState(){
   try{
@@ -4899,6 +4934,37 @@ function wireWeekLaminaWeekdaySelector(container, laminaId, onChange){
    weekday filter (weekLaminaState) and the Vista/Columnas panel, both wired from
    renderGroupMenuWeekWow() below. Country-name click-to-open-MarketingOrg-modal (YoY's own item 7)
    is intentionally NOT wired here — out of Fase 1 scope, can be added later if asked. */
+/* "Detalle por marketing type" (botón 2, Plantilla PPT Laminas.xlsx, 2026-08-24) — Spend por
+   marketing type dentro de "Brand TV Channels", por país, solo para los types que de verdad
+   generan leads. Lee directo del MISMO raw cache que viewBuilder.js ya usa para Media Spend
+   (`_rawByDeckCache[deckId].brandedTypeRows` — el `leads` de cada fila se agregó a la exportación
+   este mismo día específicamente para esto; `spend`/`marketing_organization` ya existían). Nunca
+   pasa por `buildDeckData()` — esto es una agregación ad-hoc bajo demanda, mismo patrón que
+   `dailyTrackerRangeActuals()` ya usa para su propio rango de fechas libre. */
+function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck){
+  const rows = _rawByDeckCache[deckId].brandedTypeRows;
+  const out = {}; // country -> type -> {spend, leads}
+  for(const r of rows){
+    if(r.date<startDate || r.date>endDate) continue;
+    const c = bucketCountry(r.country, isBrazilDeck);
+    if(c===null) continue;
+    const byType = out[c] || (out[c] = {});
+    const t = byType[r.type] || (byType[r.type] = {spend:0, leads:0});
+    t.spend += r.spend||0; t.leads += r.leads||0;
+  }
+  return out;
+}
+/* Same "Brazil joins as one more country" merge every other reader of this deck's data already
+   does (yoyDailyRowsForDeck, actualFor/yoyFor above) — OE-BR's own rows, bucketed under 'Brazil',
+   folded into OE-LATAM's own map when "Agregar Brasil" is on. */
+function weekLaminaTypeBreakdownForDeck(deckId, startDate, endDate, includeBrazilMerge){
+  const isBrazilDeck = DECKS[deckId].region === 'Brazil';
+  const out = weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck);
+  if(includeBrazilMerge && deckId==='OE-LATAM'){
+    Object.assign(out, weekLaminaTypeBreakdown('OE-BR', startDate, endDate, true));
+  }
+  return out;
+}
 function weekWowSlide(row){
   const isBrazil = currentDeck().region === 'Brazil';
   const showMergedBrazil = !isBrazil && DECK_ID==='OE-LATAM' && includeBrazil;
@@ -5008,16 +5074,84 @@ function weekWowSlide(row){
       ${cells}
     </div>`;
   }
-  let displayRowsWeek = showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER_DISPLAY, 'Brazil'] : DAILY_TRACKER_ROW_ORDER_DISPLAY;
-  if(row.hideCountries) displayRowsWeek = displayRowsWeek.filter(c=>!row.hideCountries.includes(c));
+  // A row with BOTH highlightCountries + benchmarkCountries is a single-country deep-dive (e.g.
+  // "México exclusivamente") -- explicit ask 2026-08-24: the table shows ONLY 2 rows then, the
+  // highlighted country and the benchmark group, never the other individual countries or the
+  // standard "LT Excl. MX & AR" subtotal (those belong to the consolidated-LatAm view, not a
+  // country-specific one). Otherwise, the normal full country breakdown (hideCountries still
+  // applies there if present, e.g. row 9's "ocultar México").
+  let displayRowsWeek;
   if(row.benchmarkCountries && row.highlightCountries){
-    // Insert the benchmark row right after the FIRST highlighted country, for an easy side-by-side
-    // read (explicit ask: "comparar su WOW vs el WOW de los países benchmark").
-    const afterIdx = displayRowsWeek.indexOf(row.highlightCountries[0]);
-    displayRowsWeek = afterIdx<0 ? [...displayRowsWeek, BENCHMARK_KEY] : [...displayRowsWeek.slice(0,afterIdx+1), BENCHMARK_KEY, ...displayRowsWeek.slice(afterIdx+1)];
+    displayRowsWeek = [...row.highlightCountries, BENCHMARK_KEY];
+  } else {
+    displayRowsWeek = showMergedBrazil ? [...DAILY_TRACKER_ROW_ORDER_DISPLAY, 'Brazil'] : DAILY_TRACKER_ROW_ORDER_DISPLAY;
+    if(row.hideCountries) displayRowsWeek = displayRowsWeek.filter(c=>!row.hideCountries.includes(c));
   }
   const rowsHtmlWeek = isBrazil ? countryRowWeek('Brazil') : displayRowsWeek.map(countryRowWeek).join('');
   const headerCellsWeek = yCols.map((c,i)=>`<div class="metric-col${colDividerCls(yCols,i)}">${colLabelYoy(c.key)}</div>`).join('');
+
+  /* "Detalle por marketing type" (botón 2) — reemplaza SOLO la tabla de detalle (el hero de
+     arriba no cambia), mismas filas de país que la tabla normal (incl. el recorte a 2 filas de
+     México/benchmark cuando aplica), columnas = marketing types con leads en el rango analizado.
+     Spend actual vs comparación, mismo formato de celda que el resto de la lámina. */
+  function typeTableHtml(){
+    const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil);
+    const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil);
+    const emptyTB = {spend:0, leads:0};
+    const forCountries = (byCountry, countries) => {
+      const merged = {};
+      countries.forEach(c => Object.entries(byCountry[c]||{}).forEach(([t,v]) => {
+        const m = merged[t] || (merged[t] = {spend:0, leads:0});
+        m.spend += v.spend; m.leads += v.leads;
+      }));
+      return merged;
+    };
+    const typeFor = (byCountry, c) => {
+      if(c===BENCHMARK_KEY) return forCountries(byCountry, row.benchmarkCountries);
+      if(c===REST_LATAM_SUBTOTAL_KEY) return forCountries(byCountry, REST_LATAM_SUBTOTAL_COUNTRIES);
+      return byCountry[c] || {};
+    };
+    // Solo los marketing types que generan leads en el rango ANALIZADO -- pedido explícito ("solo
+    // los que tienen leads") -- ordenados por spend total, de mayor a menor.
+    const totalSpendByType = {}, qualifyingTypes = new Set();
+    const scopeCountries = isBrazil ? ['Brazil'] : displayRowsWeek;
+    scopeCountries.forEach(c => {
+      Object.entries(typeFor(actualTypes, c)).forEach(([t,v]) => {
+        totalSpendByType[t] = (totalSpendByType[t]||0) + v.spend;
+        if(v.leads>0) qualifyingTypes.add(t);
+      });
+    });
+    const types = [...qualifyingTypes].sort((a,b)=>(totalSpendByType[b]||0)-(totalSpendByType[a]||0));
+    if(!types.length){
+      return `<div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
+        <div class="empty-note">${L('Ningún marketing type generó leads en este período.','No marketing type generated leads this period.')}</div>`;
+    }
+    const typeGridTemplate = `1.25fr ${types.map(()=>'1fr').join(' ')}`;
+    const typeHeaderCells = types.map(t=>`<div class="metric-col">${t}</div>`).join('');
+    function typeRowHtml(c){
+      const a = typeFor(actualTypes, c), b = typeFor(compareTypes, c);
+      const isBenchOrSub = c===BENCHMARK_KEY || c===REST_LATAM_SUBTOTAL_KEY;
+      const label = c===BENCHMARK_KEY ? L(row.benchmarkLabelEs, row.benchmarkLabelEn) : c===REST_LATAM_SUBTOTAL_KEY ? 'LT Excl. MX & AR' : (LANG==='es' ? COUNTRY_LABEL_ES[c] : COUNTRY_LABEL_EN[c]);
+      const isHighlighted = !!(row.highlightCountries && row.highlightCountries.includes(c));
+      const nameHtml = isBenchOrSub
+        ? `<div class="ch-name">${iconChip('globe','var(--brand-accent)')}<div class="ch-text"><h4>${label}</h4></div></div>`
+        : `<div class="ch-name">${flagIcon(c)}<div class="ch-text"><h4>${label}</h4></div></div>`;
+      const cells = types.map(t => {
+        const av = (a[t]||emptyTB).spend, bv = (b[t]||emptyTB).spend;
+        return `<div class="metric-col" data-metric="${t}">${metricCell(av, bv, fmtUSD, true, false, null, null, false, true)}</div>`;
+      }).join('');
+      return `<div class="ch-row no-click${isBenchOrSub?' subtotal-row':''}${isHighlighted?' week-lamina-highlight':''}" style="grid-template-columns:${typeGridTemplate}">
+        ${nameHtml}
+        ${cells}
+      </div>`;
+    }
+    const bodyRows = isBrazil ? typeRowHtml('Brazil') : displayRowsWeek.map(typeRowHtml).join('');
+    return `<div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
+      <div class="channel-table daily-table">
+        <div class="ch-header-row" style="grid-template-columns:${typeGridTemplate}"><div></div>${typeHeaderCells}</div>
+        ${bodyRows}
+      </div>`;
+  }
 
   const actualRangeLabel = fmtYoyRange(row.actualRange);
   const compareRangeLabel = fmtYoyRange(row.compareRange);
@@ -5037,25 +5171,46 @@ function weekWowSlide(row){
         <div class="bh-head"><span class="bh-badge">${L('Brand TV Channels','Brand TV Channels')}</span><span class="bh-sub">${heroSubWeek}</span></div>
         <div class="bh-kpis" style="grid-template-columns:${heroColsWeek.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpisWeek}</div>
       </div>`;
-  const bodyHtmlWeek = isBrazil ? heroBlockHtmlWeek : `${heroBlockHtmlWeek}
+  // "Detalle por marketing type" (botón 2) reemplaza la tabla de país normal por completo mientras
+  // esté activo -- el hero de arriba nunca cambia. Botón vive en el footer (footerBar's rightExtra,
+  // al lado del logo — mismo slot que ya usan otras láminas para controles extra).
+  const bodyHtmlWeek = state.marketingTypeMode
+    ? `${heroBlockHtmlWeek}${typeTableHtml()}`
+    : (isBrazil ? heroBlockHtmlWeek : `${heroBlockHtmlWeek}
       <div class="detail-label daily-detail-label">${L('Detalle por país','Detail by country')}</div>
       <div class="channel-table daily-table">
         <div class="ch-header-row" style="grid-template-columns:${yGridTemplate}"><div></div>${headerCellsWeek}</div>
         ${rowsHtmlWeek}
-      </div>`;
+      </div>`);
+  const marketingTypeBtn = `<button type="button" class="week-lamina-detail-btn${state.marketingTypeMode?' on':''}" data-week-marketingtype-toggle="${row.laminaId}">${state.marketingTypeMode ? L('Ver KPIs','View KPIs') : L('Marketing type por país','Marketing type by country')}</button>`;
   return `<section class="slide slide-weekwow${isBrazil?' slide-daily-br':''}${state.hideActual?' hide-actual-value':''}${state.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom(row.laminaId)}"><div class="slide-inner">
     ${headerBlock('s-'+row.laminaId, row.laminaTitleEs, row.laminaTitleEn, subtitleEs, subtitleEn)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlWeek}
     </div>
-  </div>${footerBar(false, {legend: state.cols.NewCashSemaphore, legendYoy:true})}</section>`;
+  </div>${footerBar(false, {legend: state.cols.NewCashSemaphore, legendYoy:true, rightExtra:marketingTypeBtn})}</section>`;
 }
 function refreshSlideWeekWow(laminaId){
   const idx = SLIDES.findIndex(s=>s.id===laminaId);
   if(idx<0) return;
   const row = WEEK_LAMINA_ROWS.find(r=>r.laminaId===laminaId);
   document.querySelectorAll('.slide')[idx].outerHTML = weekWowSlide(row);
+  wireWeekLaminaDetailButtons();
   fitHeroDeltas(laminaId);
   if(!autoFitBusy) applyAutoFit(laminaId);
+}
+/* Delegated wiring for every "Semana WOW" lámina's own footer detail-button (outerHTML swaps in
+   refreshSlideWeekWow()/renderDeck() destroy the old button + its listener each time, same as
+   every other per-slide control in this file — this just re-finds and re-binds all of them). */
+function wireWeekLaminaDetailButtons(){
+  document.querySelectorAll('[data-week-marketingtype-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const laminaId = btn.dataset.weekMarketingtypeToggle;
+      const state = weekLaminaState[laminaId];
+      state.marketingTypeMode = !state.marketingTypeMode;
+      refreshSlideWeekWow(laminaId);
+      if(currentWeekLaminaId===laminaId) renderGroupMenuWeekWow();
+    });
+  });
 }
 /* Single shared #groupMenuWeekWow slot (see its own div/CSS comments) — figures out which of the
    N week-láminas is currently on screen from SLIDES itself (mirrors how updateOnLaminaA() detects
@@ -5076,8 +5231,12 @@ function renderGroupMenuWeekWow(){
   const laminaId = currentId;
   currentWeekLaminaId = laminaId;
   const state = weekLaminaState[laminaId];
+  // Columnas se bloquea mientras el detalle de marketing type está activo (pedido explícito,
+  // 2026-08-24: "las columnas van a ser diferentes en ese modelo de marketing type") -- Vista y
+  // día de semana siguen funcionando igual, esta es la ÚNICA sección que se deshabilita.
+  const colsLocked = state.marketingTypeMode;
   const colsHtml = YOY_COL_DEFS.map(c=>
-    `<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`
+    `<label class="${colsLocked?'menu-locked':''}"><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}${colsLocked?' disabled':''}> ${colLabelYoy(c.key)}</label>`
   ).join('');
   menu.innerHTML = `
     <div class="group-menu-col">
@@ -5087,7 +5246,7 @@ function renderGroupMenuWeekWow(){
       ${otherViewsHtml('includeBrazilToggleWeekWow')}
     </div>
     <div class="group-menu-col">
-      <div class="side-menu-header">${L('Columnas','Columns')}</div>
+      <div class="side-menu-header">${L('Columnas','Columns')}${colsLocked?` <span class="menu-locked-note">${L('(bloqueado en modo marketing type)','(locked in marketing-type mode)')}</span>`:''}</div>
       ${colsHtml}
     </div>
     <div class="group-menu-col">
@@ -5152,6 +5311,7 @@ function renderDeck(){
   wireYoyMktOrgToggle();
   wireYoyMktOrgModalClicks();
   wireMonthSelector();
+  wireWeekLaminaDetailButtons();
   renderGroupMenu();
   renderGroupMenuDaily();
   renderGroupMenuYoy();
