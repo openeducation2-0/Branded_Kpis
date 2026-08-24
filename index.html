@@ -946,8 +946,6 @@ body.home-mode .hover-zone.center, body.home-mode #groupMenu, body.home-mode #gr
 }
 .group-menu-col label input{cursor:pointer;}
 /* "Semana WOW" láminas — Columnas bloqueada mientras el detalle de marketing type está activo. */
-.group-menu-col label.menu-locked{opacity:.45;cursor:not-allowed;}
-.group-menu-col label.menu-locked input{cursor:not-allowed;}
 .menu-locked-note{font-size:10.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text-secondary);opacity:.8;}
 
 /* ============ ONBOARDING TUTORIAL ============ */
@@ -4814,7 +4812,7 @@ function slideYoy(){
 const LS_WEEK_LAMINA_STATE = 'brandedkpis_weeklamina_state_v1';
 let weekLaminaState = {};
 WEEK_LAMINA_ROWS.forEach(r => {
-  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: false, marketingTypeMode: false };
+  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: false, marketingTypeMode: false, marketingTypeMetric: 'leads' };
 });
 (function loadWeekLaminaState(){
   try{
@@ -4943,14 +4941,14 @@ function wireWeekLaminaWeekdaySelector(container, laminaId, onChange){
    `dailyTrackerRangeActuals()` ya usa para su propio rango de fechas libre. */
 function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck){
   const rows = _rawByDeckCache[deckId].brandedTypeRows;
-  const out = {}; // country -> type -> {spend, leads}
+  const out = {}; // country -> type -> {leads, sales}
   for(const r of rows){
     if(r.date<startDate || r.date>endDate) continue;
     const c = bucketCountry(r.country, isBrazilDeck);
     if(c===null) continue;
     const byType = out[c] || (out[c] = {});
-    const t = byType[r.type] || (byType[r.type] = {spend:0, leads:0});
-    t.spend += r.spend||0; t.leads += r.leads||0;
+    const t = byType[r.type] || (byType[r.type] = {leads:0, sales:0});
+    t.leads += r.leads||0; t.sales += r.sales||0;
   }
   return out;
 }
@@ -5094,15 +5092,25 @@ function weekWowSlide(row){
      arriba no cambia), mismas filas de país que la tabla normal (incl. el recorte a 2 filas de
      México/benchmark cuando aplica), columnas = marketing types con leads en el rango analizado.
      Spend actual vs comparación, mismo formato de celda que el resto de la lámina. */
-  function typeTableHtml(){
+  /* Detalle por marketing type — rediseñado 2026-08-24 tras feedback directo: la métrica de cada
+     celda es Leads (elegibles — mismo campo que el resto de la app llama "Leads", ver
+     addDailyRowInto) o Ventas, elegido por el usuario (selección única, ver renderGroupMenuWeekWow),
+     NUNCA spend. El hero de arriba también cambia en este modo: una tarjeta POR marketing type,
+     alineada a la misma cuadrícula que sus columnas en la tabla de abajo (mismo grid-template en
+     ambas), con el TOTAL de esa métrica para los países actualmente mostrados — no el hero normal
+     de KPIs, que no tiene ninguna relación columna-por-columna con esta tabla. */
+  function typeModeBodyHtml(){
+    const metric = state.marketingTypeMetric; // 'leads' | 'sales'
+    const fmtField = metric==='sales' ? 'sales' : 'leads';
+    const metricLabel = metric==='sales' ? L('Ventas','Sales') : L('Leads','Leads');
     const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil);
     const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil);
-    const emptyTB = {spend:0, leads:0};
+    const emptyTB = {leads:0, sales:0};
     const forCountries = (byCountry, countries) => {
       const merged = {};
       countries.forEach(c => Object.entries(byCountry[c]||{}).forEach(([t,v]) => {
-        const m = merged[t] || (merged[t] = {spend:0, leads:0});
-        m.spend += v.spend; m.leads += v.leads;
+        const m = merged[t] || (merged[t] = {leads:0, sales:0});
+        m.leads += v.leads; m.sales += v.sales;
       }));
       return merged;
     };
@@ -5111,22 +5119,40 @@ function weekWowSlide(row){
       if(c===REST_LATAM_SUBTOTAL_KEY) return forCountries(byCountry, REST_LATAM_SUBTOTAL_COUNTRIES);
       return byCountry[c] || {};
     };
-    // Solo los marketing types que generan leads en el rango ANALIZADO -- pedido explícito ("solo
-    // los que tienen leads") -- ordenados por spend total, de mayor a menor.
-    const totalSpendByType = {}, qualifyingTypes = new Set();
-    const scopeCountries = isBrazil ? ['Brazil'] : displayRowsWeek;
+    // Solo los marketing types que generan LEADS en el rango ANALIZADO -- pedido explícito ("solo
+    // los que tienen leads"), sin importar si la métrica mostrada ahora mismo es Ventas -- el
+    // criterio de calificación siempre es leads, ordenados por leads total de mayor a menor.
+    const totalLeadsByType = {}, qualifyingTypes = new Set();
+    // Nunca sumar el pseudo-key de subtotal aquí -- displayRowsWeek lo lista JUNTO a los países que
+    // resume (Colombia/Chile/Ecuador/Perú/Costa Rica/Otros), así que sumarlo también duplicaría
+    // esos 6 países (bug real encontrado 2026-08-24: el hero daba más que la suma real de países).
+    // El benchmark de una lámina de país específico (BENCHMARK_KEY) SÍ se suma -- su lista de
+    // países nunca se solapa con highlightCountries.
+    const scopeCountries = isBrazil ? ['Brazil'] : displayRowsWeek.filter(c=>c!==REST_LATAM_SUBTOTAL_KEY);
     scopeCountries.forEach(c => {
       Object.entries(typeFor(actualTypes, c)).forEach(([t,v]) => {
-        totalSpendByType[t] = (totalSpendByType[t]||0) + v.spend;
+        totalLeadsByType[t] = (totalLeadsByType[t]||0) + v.leads;
         if(v.leads>0) qualifyingTypes.add(t);
       });
     });
-    const types = [...qualifyingTypes].sort((a,b)=>(totalSpendByType[b]||0)-(totalSpendByType[a]||0));
+    const types = [...qualifyingTypes].sort((a,b)=>(totalLeadsByType[b]||0)-(totalLeadsByType[a]||0));
     if(!types.length){
-      return `<div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
+      return `${heroBlockHtmlWeek}
+        <div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
         <div class="empty-note">${L('Ningún marketing type generó leads en este período.','No marketing type generated leads this period.')}</div>`;
     }
     const typeGridTemplate = `1.25fr ${types.map(()=>'1fr').join(' ')}`;
+    // Hero alineado — una tarjeta por type, en la MISMA columna que le corresponde en la tabla.
+    const heroCellsByType = types.map(t=>{
+      const totalsA = scopeCountries.reduce((s,c)=>s+((typeFor(actualTypes,c)[t]||emptyTB)[fmtField]), 0);
+      const totalsB = scopeCountries.reduce((s,c)=>s+((typeFor(compareTypes,c)[t]||emptyTB)[fmtField]), 0);
+      return `<div class="bh-kpi" data-metric="${t}"><div><div class="label">${t}</div>${metricCell(totalsA, totalsB, fmtNum, false, false)}</div></div>`;
+    }).join('');
+    const heroBlockTypeAligned = `
+      <div class="blended-hero daily-hero no-click">
+        <div class="bh-head"><span class="bh-badge">${metricLabel}</span><span class="bh-sub">${L('por marketing type','by marketing type')}</span></div>
+        <div class="bh-kpis" style="grid-template-columns:${typeGridTemplate.replace('1.25fr ','')}">${heroCellsByType}</div>
+      </div>`;
     const typeHeaderCells = types.map(t=>`<div class="metric-col">${t}</div>`).join('');
     function typeRowHtml(c){
       const a = typeFor(actualTypes, c), b = typeFor(compareTypes, c);
@@ -5137,8 +5163,8 @@ function weekWowSlide(row){
         ? `<div class="ch-name">${iconChip('globe','var(--brand-accent)')}<div class="ch-text"><h4>${label}</h4></div></div>`
         : `<div class="ch-name">${flagIcon(c)}<div class="ch-text"><h4>${label}</h4></div></div>`;
       const cells = types.map(t => {
-        const av = (a[t]||emptyTB).spend, bv = (b[t]||emptyTB).spend;
-        return `<div class="metric-col" data-metric="${t}">${metricCell(av, bv, fmtUSD, true, false, null, null, false, true)}</div>`;
+        const av = (a[t]||emptyTB)[fmtField], bv = (b[t]||emptyTB)[fmtField];
+        return `<div class="metric-col" data-metric="${t}">${metricCell(av, bv, fmtNum, false, false)}</div>`;
       }).join('');
       return `<div class="ch-row no-click${isBenchOrSub?' subtotal-row':''}${isHighlighted?' week-lamina-highlight':''}" style="grid-template-columns:${typeGridTemplate}">
         ${nameHtml}
@@ -5146,7 +5172,8 @@ function weekWowSlide(row){
       </div>`;
     }
     const bodyRows = isBrazil ? typeRowHtml('Brazil') : displayRowsWeek.map(typeRowHtml).join('');
-    return `<div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
+    return `${heroBlockTypeAligned}
+      <div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
       <div class="channel-table daily-table">
         <div class="ch-header-row" style="grid-template-columns:${typeGridTemplate}"><div></div>${typeHeaderCells}</div>
         ${bodyRows}
@@ -5175,7 +5202,7 @@ function weekWowSlide(row){
   // esté activo -- el hero de arriba nunca cambia. Botón vive en el footer (footerBar's rightExtra,
   // al lado del logo — mismo slot que ya usan otras láminas para controles extra).
   const bodyHtmlWeek = state.marketingTypeMode
-    ? `${heroBlockHtmlWeek}${typeTableHtml()}`
+    ? typeModeBodyHtml()
     : (isBrazil ? heroBlockHtmlWeek : `${heroBlockHtmlWeek}
       <div class="detail-label daily-detail-label">${L('Detalle por país','Detail by country')}</div>
       <div class="channel-table daily-table">
@@ -5231,13 +5258,18 @@ function renderGroupMenuWeekWow(){
   const laminaId = currentId;
   currentWeekLaminaId = laminaId;
   const state = weekLaminaState[laminaId];
-  // Columnas se bloquea mientras el detalle de marketing type está activo (pedido explícito,
-  // 2026-08-24: "las columnas van a ser diferentes en ese modelo de marketing type") -- Vista y
-  // día de semana siguen funcionando igual, esta es la ÚNICA sección que se deshabilita.
-  const colsLocked = state.marketingTypeMode;
-  const colsHtml = YOY_COL_DEFS.map(c=>
-    `<label class="${colsLocked?'menu-locked':''}"><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}${colsLocked?' disabled':''}> ${colLabelYoy(c.key)}</label>`
-  ).join('');
+  // Mientras el detalle de marketing type está activo, Columnas deja de ser la lista normal de
+  // KPIs (checkboxes, multi-selección) y pasa a ser Leads/Ventas de selección ÚNICA (radio) --
+  // pedido explícito 2026-08-24: "debería tener desbloqueado leads... y sales... pero solo
+  // selección única, a diferencia de cuando estoy en la visual de KPIs que sí puedo seleccionar
+  // varios". Vista y día de semana no cambian en absoluto.
+  const inTypeMode = state.marketingTypeMode;
+  const columnasSectionHtml = inTypeMode
+    ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(Leads o Ventas)','(Leads or Sales)')}</span></div>
+       <label><input type="radio" name="weekTypeMetric" data-week-type-metric="leads" ${state.marketingTypeMetric==='leads'?'checked':''}> ${L('Leads','Leads')}</label>
+       <label><input type="radio" name="weekTypeMetric" data-week-type-metric="sales" ${state.marketingTypeMetric==='sales'?'checked':''}> ${L('Ventas','Sales')}</label>`
+    : `<div class="side-menu-header">${L('Columnas','Columns')}</div>
+       ${YOY_COL_DEFS.map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`;
   menu.innerHTML = `
     <div class="group-menu-col">
       <div class="side-menu-header">${L('Vista','View')}</div>
@@ -5246,8 +5278,7 @@ function renderGroupMenuWeekWow(){
       ${otherViewsHtml('includeBrazilToggleWeekWow')}
     </div>
     <div class="group-menu-col">
-      <div class="side-menu-header">${L('Columnas','Columns')}${colsLocked?` <span class="menu-locked-note">${L('(bloqueado en modo marketing type)','(locked in marketing-type mode)')}</span>`:''}</div>
-      ${colsHtml}
+      ${columnasSectionHtml}
     </div>
     <div class="group-menu-col">
       <div class="side-menu-header">${L('Filtrar por día de semana','Filter by weekday')}</div>
@@ -5256,6 +5287,14 @@ function renderGroupMenuWeekWow(){
   menu.querySelectorAll('input[data-week-col]').forEach(inp=>{
     inp.addEventListener('change', e=>{
       state.cols[e.target.dataset.weekCol] = e.target.checked;
+      saveWeekLaminaState();
+      refreshSlideWeekWow(laminaId);
+    });
+  });
+  menu.querySelectorAll('input[data-week-type-metric]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      if(!e.target.checked) return;
+      state.marketingTypeMetric = e.target.dataset.weekTypeMetric;
       saveWeekLaminaState();
       refreshSlideWeekWow(laminaId);
     });
