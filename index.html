@@ -303,6 +303,16 @@ body.login-mode #zoomGroup{display:none;}
   .load-bar-fill{animation-duration:2.5s;}
 }
 
+/* Hourly background data-change overlay (explicit ask 2026-08-24) -- sits on top of the normal
+   dashboard (unlike the login screen's own dark glass-card background), so its own .load-bar gets
+   theme-aware colors here rather than reusing the login screen's white-on-dark styling verbatim. */
+.data-refresh-overlay{position:fixed;inset:0;z-index:9980;display:flex;align-items:center;justify-content:center;}
+.data-refresh-overlay::before{content:'';position:absolute;inset:0;background:rgba(10,15,25,.25);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+.data-refresh-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:var(--space-3);background:var(--bg-card);border:1px solid var(--border-soft);box-shadow:var(--shadow-lg);border-radius:var(--radius-lg);padding:28px 36px;}
+.data-refresh-card span{color:var(--text-primary);font-size:var(--text-sm);font-weight:600;letter-spacing:.02em;}
+.data-refresh-card .load-bar{background:var(--border-soft);}
+.data-refresh-card .load-bar-fill{background:linear-gradient(90deg, rgba(255,255,255,0), var(--brand-accent) 55%, var(--color-oe-aqua));box-shadow:none;}
+
 
 /* ================= DECK ================= */
 #deck{position:fixed;inset:0;display:none;background:var(--bg-page);}
@@ -1281,6 +1291,16 @@ dialog.modal::backdrop{background:rgba(10,15,25,.55);backdrop-filter:blur(2px);}
       <div class="load-bar"><div class="load-bar-fill"></div></div>
       <span data-es="Cargando…" data-en="Loading…">Cargando…</span>
     </div>
+  </div>
+</div>
+
+<!-- Hourly background data-change check (explicit ask 2026-08-24) -- shown only while
+     reloadDataInPlace() is actually swapping in fresh data; hidden the rest of the time,
+     never touches login state. -->
+<div id="dataRefreshOverlay" class="data-refresh-overlay" style="display:none;">
+  <div class="data-refresh-card">
+    <div class="load-bar"><div class="load-bar-fill"></div></div>
+    <span data-es="Actualizando datos…" data-en="Updating data…">Actualizando datos…</span>
   </div>
 </div>
 
@@ -4901,7 +4921,7 @@ WEEK_LAMINA_ROWS.forEach(r => {
   // seeing "Sem. ant." rather than it always being on. weekdays:null already means "every weekday
   // this period actually contains" (see periodWeekdaysIfShort) -- already the intended default,
   // nothing to change there.
-  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: true, marketingTypeMode: false, marketingTypeMetric: 'leads' };
+  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: true, marketingTypeMode: false, marketingTypeMetric: 'leads', marketingOrgFilter: {oe:true, junior:true} };
 });
 const WEEK_LAMINA_STATE_DEFAULTS = JSON.parse(JSON.stringify(weekLaminaState)); // pristine snapshot for "Restablecer filtros" -- captured BEFORE loadWeekLaminaState() below can mutate it from localStorage
 (function loadWeekLaminaState(){
@@ -5093,13 +5113,54 @@ function weekWowSlide(row){
   // merge logic needed here (see that function's own comment).
   const actualByCountry = aggregateYoyDaily(yoyDailyRowsForDeck('current'), row.actualRange.start, row.actualRange.end, weekdaySet);
   const compareByCountry = aggregateYoyDaily(yoyDailyRowsForDeck('prior'), row.compareRange.start, row.compareRange.end, weekdaySet);
-  const actualFor = c => (isBrazil ? actualByCountry['Brazil'] : actualByCountry[c]) || emptyRow;
-  const yoyFor = c => (isBrazil ? compareByCountry['Brazil'] : compareByCountry[c]) || emptyRow;
+  // Junior investment filter (mirrors yoyMktOrgFilter/the real YoY lámina's own "OE Adult | OE
+  // Junior" footer toggle -- explicit ask 2026-08-24, "por qué no están en las nuevas láminas").
+  // Real difference from YoY's version: YoY swaps in a PRE-COMPUTED field fixed to one specific
+  // period (DATA.actualsByCountryMktOrg); this lámina's actual/compare ranges are arbitrary
+  // per-row config, so there's no matching pre-computed field -- it aggregates
+  // DATA.yoyDailyByMktOrg's raw per-day rows directly for THIS row's own ranges + weekdaySet,
+  // same building block aggregateMktOrgDaily() already provides for YoY's marketing-org share
+  // modal. Gated on DATA.yoyDailyByMktOrg existing -- Adult decks never have it (Junior-only
+  // field), so state.marketingOrgFilter is simply inert there, matching YoY's own gating.
+  const mktOrgAvailable = !!DATA.yoyDailyByMktOrg;
+  function weekMktOrgKey(){
+    const f = state.marketingOrgFilter;
+    if(!mktOrgAvailable || !f || (f.oe && f.junior)) return 'total';
+    if(f.junior) return 'juniorOwn';
+    if(f.oe) return 'adultOnly';
+    return 'total';
+  }
+  const weekOrgKey = weekMktOrgKey();
+  const WEEK_ORG_NAME = {adultOnly:'OE', juniorOwn:'Open English Junior'};
+  // Only Leads/Sales/NewCash are honestly splittable by org (same MKTORG_SHARE_METRICS the real
+  // YoY modal already restricts to, reused verbatim -- see that constant's own comment: Spend
+  // isn't, because OE's own slice inside Junior's funnel is always $0 in real data, not a
+  // meaningful split). state.cols gets restricted to just these while non-"total" (see
+  // renderGroupMenuWeekWow) so no other column ever tries to render off a field this path can't
+  // honestly provide.
+  function orgFilteredRow(c, range){
+    const scope = isBrazil ? 'Brazil' : c;
+    const byOrg = aggregateMktOrgDaily(DATA.yoyDailyByMktOrg, range.start, range.end, weekdaySet, scope);
+    const v = byOrg[WEEK_ORG_NAME[weekOrgKey]];
+    return {...emptyRow, Leads:(v&&v.Leads)||0, Sales:(v&&v.Sales)||0, NewCash:(v&&v.NewCash)||0};
+  }
+  const actualFor = c => weekOrgKey!=='total'
+    ? orgFilteredRow(c, row.actualRange)
+    : (isBrazil ? actualByCountry['Brazil'] : actualByCountry[c]) || emptyRow;
+  const yoyFor = c => weekOrgKey!=='total'
+    ? orgFilteredRow(c, row.compareRange)
+    : (isBrazil ? compareByCountry['Brazil'] : compareByCountry[c]) || emptyRow;
 
   const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
   const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
 
-  const yCols = YOY_COL_DEFS.filter(c=> state.cols[c.key]);
+  // Restricted to the 3 honestly org-splittable columns while the Junior investment filter is
+  // active (see orgFilteredRow/MKTORG_SHARE_METRICS above) -- ignores state.cols' own saved
+  // preferences in that state on purpose, same "special mode overrides the normal column picker"
+  // pattern already used by marketingTypeMode's Leads/Ventas/% Share radio.
+  const yCols = weekOrgKey!=='total'
+    ? YOY_COL_DEFS.filter(c=> MKTORG_SHARE_METRICS.has(c.key))
+    : YOY_COL_DEFS.filter(c=> state.cols[c.key]);
   // minmax(0,Xfr), not bare Xfr -- real bug found 2026-08-24 in the OTHER hero of this lámina
   // (typeModeBodyHtml's, see its own comment): a bare `Xfr` track's minimum width defaults to its
   // CONTENT's size, not 0, so a grid can resolve a column WIDER than its fair share whenever its
@@ -5415,11 +5476,22 @@ function weekWowSlide(row){
   // botón se muestra siempre (para que las 7 láminas se vean consistentes) pero queda bloqueado
   // (`disabled`) cuando la fila no tiene nada en columna K, en vez de inventar contenido.
   const separationNoteBtn = `<button type="button" class="week-lamina-detail-btn" data-week-note-toggle="${row.laminaId}"${row.separationNote?'':' disabled'}>${L('Comentario Excel','Excel comment')}</button>`;
+  // Junior investment filter footer toggle -- same slot (footerBar's centerExtra) and same markup
+  // classes the real YoY lámina's own "OE Adult | OE Junior" toggle already uses, just reading/
+  // writing this lámina's own state.marketingOrgFilter instead of the global yoyMktOrgFilter.
+  const mktOrgToggleWeek = mktOrgAvailable ? `
+    <div class="yoymktorg-toggle-wrap">
+      <span class="yoymktorg-label">${L('Resultados de Junior según inversión de:','Junior results by investment from:')}</span>
+      <div class="footer-toggle yoymktorg-toggle">
+        <button class="${state.marketingOrgFilter.oe?'on':''}" data-week-mktorg="${row.laminaId}:oe">OE Adult</button>
+        <button class="${state.marketingOrgFilter.junior?'on':''}" data-week-mktorg="${row.laminaId}:junior">OE Junior</button>
+      </div>
+    </div>` : '';
   return `<section class="slide slide-weekwow${isBrazil?' slide-daily-br':''}${state.hideActual?' hide-actual-value':''}${state.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom(row.laminaId)}"><div class="slide-inner">
     ${headerBlock('s-'+row.laminaId, row.laminaTitleEs, row.laminaTitleEn, subtitleEs, subtitleEn)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlWeek}
     </div>
-  </div>${footerBar(false, {legend: state.cols.NewCashSemaphore, legendYoy:true, rightExtra:marketingTypeBtn+separationNoteBtn})}</section>`;
+  </div>${footerBar(false, {legend: weekOrgKey==='total' && state.cols.NewCashSemaphore, legendYoy:true, centerExtra:mktOrgToggleWeek, rightExtra:marketingTypeBtn+separationNoteBtn})}</section>`;
 }
 function refreshSlideWeekWow(laminaId){
   const idx = SLIDES.findIndex(s=>s.id===laminaId);
@@ -5447,6 +5519,21 @@ function wireWeekLaminaDetailButtons(){
     btn.addEventListener('click', ()=>{
       const row = WEEK_LAMINA_ROWS.find(r=>r.laminaId===btn.dataset.weekNoteToggle);
       if(row) openModal(null, weekSeparationNoteModalHtml(row));
+    });
+  });
+  // Junior investment filter toggle -- same click/guard logic as wireYoyMktOrgToggle(), scoped to
+  // THIS lámina's own state.marketingOrgFilter instead of the global yoyMktOrgFilter (data
+  // attribute encodes "laminaId:which" since this button can exist on several láminas at once).
+  document.querySelectorAll('[data-week-mktorg]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [laminaId, which] = btn.dataset.weekMktorg.split(':');
+      const state = weekLaminaState[laminaId];
+      const next = {...state.marketingOrgFilter, [which]: !state.marketingOrgFilter[which]};
+      if(!next.oe && !next.junior) return; // at least one must stay on, same no-op guard as YoY's
+      state.marketingOrgFilter = next;
+      saveWeekLaminaState();
+      refreshSlideWeekWow(laminaId);
+      if(currentWeekLaminaId===laminaId) renderGroupMenuWeekWow();
     });
   });
 }
@@ -5489,11 +5576,18 @@ function renderGroupMenuWeekWow(){
   // selección única, a diferencia de cuando estoy en la visual de KPIs que sí puedo seleccionar
   // varios". Vista y día de semana no cambian en absoluto.
   const inTypeMode = state.marketingTypeMode;
+  // Same "which org funded this" restriction weekWowSlide() itself applies to yCols -- only
+  // Leads/Sales/NewCash are honestly splittable by org (see that function's own comment), so the
+  // Columnas picker shows just those 3 while a non-"total" investment filter is active.
+  const mktOrgFilterActive = !!DATA.yoyDailyByMktOrg && state.marketingOrgFilter && !(state.marketingOrgFilter.oe && state.marketingOrgFilter.junior);
   const columnasSectionHtml = inTypeMode
     ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(selección única)','(single select)')}</span></div>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="leads" ${state.marketingTypeMetric==='leads'?'checked':''}> ${L('Leads','Leads')}</label>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="sales" ${state.marketingTypeMetric==='sales'?'checked':''}> ${L('Ventas','Sales')}</label>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="share" ${state.marketingTypeMetric==='share'?'checked':''}> ${L('% Share','% Share')}</label>`
+    : mktOrgFilterActive
+    ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(solo lo que se puede dividir por org.)','(only what splits by org)')}</span></div>
+       ${YOY_COL_DEFS.filter(c=>MKTORG_SHARE_METRICS.has(c.key)).map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`
     : `<div class="side-menu-header">${L('Columnas','Columns')}</div>
        ${YOY_COL_DEFS.map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`;
   menu.innerHTML = `
@@ -6146,6 +6240,14 @@ function finishBootstrap(){
   // whether to close it early, never an automatic "already seen it" skip. Manual replay via the
   // ❓ button in #topControls still works too, for whenever someone wants it outside of login.
   setTimeout(startTutorial, 500);
+
+  // Hourly silent "did the source data change?" check -- explicit ask 2026-08-24. Guarded so a
+  // resumed session (finishBootstrap can be reached either via a fresh login or a silent resume,
+  // see tryResumeSession()) never starts a 2nd overlapping interval.
+  if(!dataUpdatePollerStarted){
+    dataUpdatePollerStarted = true;
+    setInterval(checkForDataUpdates, 60*60*1000);
+  }
 }
 
 /* ================= LOGIN (Google Identity Services) ================= */
@@ -6165,6 +6267,88 @@ const CURRENT_CUTOFF = null;
 
 let driveAccessToken = null;
 
+/* ================= PERSISTENT LOGIN (explicit ask 2026-08-24: "no me pida bloqueo cada rato...
+   que se quede logueada... hasta que borre el historial del navegador y la caché") =================
+   A Google OAuth access token from initTokenClient (no server, no refresh_token -- see
+   06_CREDENCIALES_Y_ACCESOS.md for why this project deliberately has no backend) is only ever
+   valid for ~1 hour; nothing about that expiry is under this page's control. What WAS entirely
+   under this page's control, and simply hadn't been built yet, was everything that made every
+   expiry (or every page reload) fall back to a VISIBLE "click here to sign in" screen. Now:
+   - The token + its expiry are persisted to localStorage (LS_AUTH) -- cleared only by the user
+     clearing browser data, exactly the boundary the user themselves described.
+   - On load, a saved-but-expired token triggers a SILENT renewal attempt
+     (`requestAccessToken({prompt:''})`, no popup, no click) before ever falling back to the
+     visible login screen -- which only appears at all if that silent attempt itself fails (the
+     user's own Google browser session is gone, or they revoked this app's access). First-time
+     visitors with nothing saved see the exact same login screen as before -- nothing changes for
+     them.
+   - A timer proactively re-runs that same silent renewal ~5 minutes before the token would
+     expire, and any Drive call that still gets a 401/403 despite that (driveApiFetch below)
+     retries once via the same silent path -- so an hours-long open tab never has to notice its
+     token turned over.
+   Trade-off worth stating plainly: keeping the token in localStorage (rather than only in this
+   page's memory, as before) means anyone with access to THIS BROWSER PROFILE's local storage
+   could reuse it for up to ~1 hour -- bounded blast radius (drive.readonly on one folder, not the
+   account itself), same "clear cache to reset" boundary the user asked for, but a real change
+   from today's "gone the instant the tab closes." */
+const LS_AUTH = 'brandedkpis_auth_v1';
+function saveAuthSession(token, expiresInSec){
+  try{ localStorage.setItem(LS_AUTH, JSON.stringify({token, expiresAt: Date.now() + expiresInSec*1000})); }catch(e){}
+}
+function loadAuthSession(){
+  try{ return JSON.parse(localStorage.getItem(LS_AUTH) || 'null'); }catch(e){ return null; }
+}
+function clearAuthSession(){
+  try{ localStorage.removeItem(LS_AUTH); }catch(e){}
+}
+
+let googleTokenClient = null;
+let pendingSilentAuthResolve = null;
+let tokenRenewalTimer = null;
+/** Requests a token with prompt:'' (silent -- no popup, no click) and resolves with GIS's own
+ * response object ({access_token, expires_in} or {error}) once the shared tokenClient callback
+ * fires. Never rejects -- callers just check `.error`, same shape GIS itself hands the callback.
+ * Real bug found testing this 2026-08-24: when there's no active Google browser session at all
+ * (a fake/garbage saved token, or a genuinely revoked one), GIS's own callback for a prompt:''
+ * request can simply never fire -- confirmed live, the promise sat unresolved for 10+ seconds
+ * with nothing pending. Without its own timeout this would hang tryResumeSession()/driveApiFetch
+ * forever instead of falling back to the visible login screen, which defeats the entire point of
+ * this being a silent, always-recoverable path. 8s is generous for a same-origin/local silent
+ * token round-trip; a real success is normally near-instant. */
+function silentReauth(){
+  return new Promise((resolve) => {
+    if(!googleTokenClient){ resolve({error:'not_ready'}); return; }
+    let settled = false;
+    const timer = setTimeout(() => {
+      if(settled) return;
+      settled = true;
+      pendingSilentAuthResolve = null; // so a very-late real callback doesn't call a stale resolve() twice
+      resolve({error:'silent_timeout'});
+    }, 8000);
+    pendingSilentAuthResolve = (response) => {
+      if(settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(response);
+    };
+    googleTokenClient.requestAccessToken({prompt: ''});
+  });
+}
+function onTokenAcquired(accessToken, expiresInSec){
+  driveAccessToken = accessToken;
+  saveAuthSession(accessToken, expiresInSec);
+  scheduleTokenRenewal(expiresInSec);
+}
+function scheduleTokenRenewal(expiresInSec){
+  if(tokenRenewalTimer) clearTimeout(tokenRenewalTimer);
+  // Renew 5 minutes before real expiry; floor at 1 minute so a very-short-lived response (or a
+  // clock oddity) can never busy-loop this timer.
+  const ms = Math.max(60000, (expiresInSec - 300) * 1000);
+  tokenRenewalTimer = setTimeout(async () => {
+    await silentReauth(); // result surfaces naturally on the next Drive call if this ever fails (driveApiFetch retries once via the same path) -- nothing else to do here either way
+  }, ms);
+}
+
 function showLoginError(msg){
   const el = document.getElementById('loginError');
   el.textContent = msg;
@@ -6173,6 +6357,19 @@ function showLoginError(msg){
 function setLoginBusy(busy){
   document.getElementById('googleLoginBtn').disabled = busy;
   document.getElementById('loginLoading').style.display = busy ? 'block' : 'none';
+}
+
+/** Shared fetch wrapper for every authenticated Drive/Google call in this page: on a 401/403, try
+ * ONE silent token renewal and retry the same request once before giving up -- this is what makes
+ * a mid-session token expiry invisible in the common case, instead of surfacing as a raw fetch
+ * failure the way every one of these calls used to. */
+async function driveApiFetch(url, retried){
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${driveAccessToken}` } });
+  if((resp.status===401 || resp.status===403) && !retried){
+    const auth = await silentReauth();
+    if(!auth.error) return driveApiFetch(url, true);
+  }
+  return resp;
 }
 
 /** Finds a file by exact name inside DRIVE_EXPORT_FOLDER_ID and returns its parsed JSON content,
@@ -6185,14 +6382,16 @@ function setLoginBusy(busy){
  * to this Shared-Drive-vs-My-Drive default. */
 async function fetchDriveJsonFile(fileName){
   const q = encodeURIComponent(`'${DRIVE_EXPORT_FOLDER_ID}' in parents and name='${fileName}' and trashed=false`);
-  const listResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`,
-    { headers: { Authorization: `Bearer ${driveAccessToken}` } });
+  const listResp = await driveApiFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`);
   if(!listResp.ok) throw new Error(`Drive file search failed for ${fileName}: HTTP ${listResp.status}`);
   const listJson = await listResp.json();
   if(!listJson.files || !listJson.files.length) throw new Error(`${fileName} not found in the shared Drive folder`);
-  const fileId = listJson.files[0].id;
-  const contentResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`,
-    { headers: { Authorization: `Bearer ${driveAccessToken}` } });
+  const file = listJson.files[0];
+  // Baseline for checkForDataUpdates()'s hourly poll below -- refreshed every time this file is
+  // actually re-downloaded (initial login, silent resume, or a background reload), so the poll
+  // always compares against "what we last truly fetched," never a stale guess.
+  lastKnownModifiedTimes[fileName] = file.modifiedTime;
+  const contentResp = await driveApiFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
   if(!contentResp.ok) throw new Error(`Drive file download failed for ${fileName}: HTTP ${contentResp.status}`);
   return contentResp.json();
 }
@@ -6200,8 +6399,7 @@ async function fetchDriveJsonFile(fileName){
 async function onLoginSuccess(){
   try{
     setLoginBusy(true);
-    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo',
-      { headers: { Authorization: `Bearer ${driveAccessToken}` } });
+    const userInfoResp = await driveApiFetch('https://www.googleapis.com/oauth2/v3/userinfo');
     const userInfo = await userInfoResp.json();
     const email = userInfo.email || '';
     const emailDomain = email.toLowerCase().split('@')[1] || '';
@@ -6215,6 +6413,7 @@ async function onLoginSuccess(){
         `This page is only for @${ALLOWED_EMAIL_DOMAIN} accounts. You signed in as ${email || 'an unknown account'}.`
       ));
       driveAccessToken = null;
+      clearAuthSession();
       setLoginBusy(false);
       return;
     }
@@ -6235,22 +6434,121 @@ async function onLoginSuccess(){
 }
 
 function initGoogleLogin(){
-  const tokenClient = google.accounts.oauth2.initTokenClient({
+  googleTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive.readonly email',
+    // One shared callback for BOTH kinds of request this page ever makes: a silent one (resume on
+    // load, proactive renewal, driveApiFetch's 401 retry -- all of them route through
+    // silentReauth(), which stashes its resolver in pendingSilentAuthResolve first) and the
+    // explicit, user-clicked one below. Checking that flag is what tells the two apart.
     callback: (response) => {
+      if(pendingSilentAuthResolve){
+        const resolve = pendingSilentAuthResolve;
+        pendingSilentAuthResolve = null;
+        if(!response.error) onTokenAcquired(response.access_token, response.expires_in);
+        resolve(response);
+        return;
+      }
       if(response.error){
         showLoginError(L('No se pudo iniciar sesión con Google. Intenta de nuevo.', 'Google sign-in failed. Please try again.'));
         return;
       }
-      driveAccessToken = response.access_token;
+      onTokenAcquired(response.access_token, response.expires_in);
       onLoginSuccess();
     },
   });
   document.getElementById('googleLoginBtn').addEventListener('click', () => {
     document.getElementById('loginError').style.display = 'none';
-    tokenClient.requestAccessToken();
+    googleTokenClient.requestAccessToken();
   });
+  tryResumeSession();
+}
+
+/** Runs once, right after initGoogleLogin() wires everything up. If nothing was saved, this is a
+ * no-op and the visible login screen stays exactly as it always has for a first-time visitor. */
+async function tryResumeSession(){
+  const saved = loadAuthSession();
+  if(!saved) return;
+  setLoginBusy(true);
+  if(saved.expiresAt - Date.now() > 2*60*1000){
+    // Still comfortably valid -- use it directly, no round-trip to Google needed at all.
+    onTokenAcquired(saved.token, (saved.expiresAt - Date.now())/1000);
+  }else{
+    const resp = await silentReauth();
+    if(resp.error){
+      // Expected, normal path whenever the user's browser-level Google session or this app's
+      // consent has lapsed -- fall back to the plain visible login screen, no scary error text.
+      clearAuthSession();
+      setLoginBusy(false);
+      return;
+    }
+  }
+  try{
+    await onLoginSuccess();
+  }catch(e){
+    clearAuthSession();
+    setLoginBusy(false);
+  }
+}
+
+/* ================= HOURLY BACKGROUND DATA-CHANGE CHECK (explicit ask 2026-08-24) =================
+   Inventory of watched files = whatever loadDataByDeckAsync's own deckIds already fetches (4 deck
+   JSON, today) -- deliberately NOT a second hand-maintained list, so this automatically covers
+   whatever gets added to that same fetch later without needing a matching edit here. */
+let lastKnownModifiedTimes = {}; // filename -> Drive modifiedTime, kept current by fetchDriveJsonFile() above
+let dataUpdatePollerStarted = false;
+/** Lightweight metadata-only lookup (no content download) -- used ONLY by the hourly poll below,
+ * so checking "did anything change" never costs as much as actually re-fetching everything. */
+async function fetchDriveFileMeta(fileName){
+  const q = encodeURIComponent(`'${DRIVE_EXPORT_FOLDER_ID}' in parents and name='${fileName}' and trashed=false`);
+  const resp = await driveApiFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives`);
+  if(!resp.ok) return null;
+  const json = await resp.json();
+  return (json.files && json.files[0]) || null;
+}
+async function checkForDataUpdates(){
+  if(!driveAccessToken) return;
+  const deckIds = Object.keys(DECKS);
+  let anyChanged = false;
+  try{
+    for(const deckId of deckIds){
+      const fileName = `${deckId}.json`;
+      const meta = await fetchDriveFileMeta(fileName);
+      if(!meta) continue; // a transient miss on one file shouldn't block checking the others
+      if(lastKnownModifiedTimes[fileName] && lastKnownModifiedTimes[fileName] !== meta.modifiedTime){
+        anyChanged = true;
+      }
+    }
+  }catch(e){ return; } // purely a background nicety -- never surface an error for this, just try again next hour
+  if(anyChanged) await reloadDataInPlace();
+}
+function showDataRefreshOverlay(show){
+  document.getElementById('dataRefreshOverlay').style.display = show ? 'flex' : 'none';
+}
+/** "Si no cambió nada, pues no la carga. Pero si cambió algo... actualice la data sin
+ * desloguearse" -- re-fetches all 4 decks' content (fetchDriveJsonFile updates
+ * lastKnownModifiedTimes again as a side effect), swaps DATA_BY_DECK/DATA in place, and if the
+ * viewer is currently inside a deck, redraws it at the SAME scroll position -- their weekday
+ * filters, column toggles, etc. all live in module-scope state untouched by this, so nothing they
+ * had set gets reset, only the underlying numbers do. Never touches driveAccessToken/login state. */
+async function reloadDataInPlace(){
+  showDataRefreshOverlay(true);
+  try{
+    const freshByDeck = await loadDataByDeckAsync(deckId => fetchDriveJsonFile(`${deckId}.json`), null);
+    DATA_BY_DECK = freshByDeck;
+    if(DATA_BY_DECK[DECK_ID]) DATA = DATA_BY_DECK[DECK_ID];
+    if(document.body.classList.contains('deck-mode')){
+      const scroller = document.getElementById('scroller');
+      const savedScrollTop = scroller.scrollTop;
+      renderDeck();
+      scroller.scrollTop = savedScrollTop;
+      updateOnLaminaA();
+    }
+  }catch(e){
+    console.error('Background data refresh failed, will retry next hour:', e);
+  }finally{
+    showDataRefreshOverlay(false);
+  }
 }
 
 /* google.accounts loads async (see the <script defer> in <head>) -- poll briefly rather than
