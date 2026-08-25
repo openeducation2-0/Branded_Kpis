@@ -1476,6 +1476,36 @@ MX --> Mon-Fri:  60%+Stanley promo (Mon-Tue vs 60% Off, //  Wed-Fri vs Oferta Es
     separationNote:`Latam excl MX AR --> Mon: TV Off due to CO holiday, Tue: only day TV On during Oferta Espec (Digital).
 MX --> Mon-Tue: only days TV On during Oferta Espec vs 60% Off (Digital).
 AR --> TV Off AR-only feeds since May 18, 2026.` },
+  // Filas 3, 5 y 7 del Excel (semana Aug 24-30): agregadas por la rutina automatica el
+  // 2026-08-25 con corte CUTOFF_DATE=2026-08-24, es decir con solo el PRIMER dia (lunes 24) ya
+  // transcurrido -- por eso `actualRange` esta recortado a 2026-08-24..2026-08-24 en vez del
+  // Aug 24-30 completo de la columna G (regla 4.1 de Docs 08). `compareRange` es el mismo
+  // desplazamiento fijo de -7 dias sobre el rango recortado (regla 4.3), o sea el lunes 17 solo.
+  // Cada corrida siguiente de la rutina debe EXTENDER estos 3 `actualRange.end` (regla 4.2), no
+  // duplicar la fila.
+  { id:'oe-br-aug24-30', deckId:'OE-BR',
+    tapaId:'tapa-oe-br-aug24-30', laminaId:'week-oe-br-aug24-30',
+    tapaTitleEs:'OE Brasil · Semana 24-30 ago', tapaTitleEn:'OE Brazil · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-24'}, compareRange:{start:'2026-08-17', end:'2026-08-17'},
+    tapaRange:{start:'2026-08-24', end:'2026-08-24'},
+    separationNote:`Mon: Last day of 60% Off promo // Tue-Sun: 60%+JBL promo vs 60% Off promo week 2 // Sun: TV Off like all Sun since Mar 30, 2026` },
+  { id:'jr-br-aug24-30', deckId:'JR-BR',
+    tapaId:'tapa-jr-br-aug24-30', laminaId:'week-jr-br-aug24-30',
+    tapaTitleEs:'JR Brasil · Semana 24-30 ago', tapaTitleEn:'JR Brazil · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-24'}, compareRange:{start:'2026-08-17', end:'2026-08-17'},
+    tapaRange:{start:'2026-08-24', end:'2026-08-24'},
+    separationNote:`Mon: Last day of 60% Off promo // Tue-Sun: 60%+JBL promo vs 60% Off promo week 2 (Fri was the only Aug Fri with TV On) // Sat-Sun: TV Off like all Sat-Sun since Feb 23, 2026` },
+  { id:'oe-latam-aug24-30', deckId:'OE-LATAM',
+    tapaId:'tapa-oe-latam-aug24-30', laminaId:'week-oe-latam-aug24-30',
+    tapaTitleEs:'OE LatAm · Semana 24-30 ago', tapaTitleEn:'OE Latam · Week Aug 24-30',
+    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
+    actualRange:{start:'2026-08-24', end:'2026-08-24'}, compareRange:{start:'2026-08-17', end:'2026-08-17'},
+    tapaRange:{start:'2026-08-24', end:'2026-08-24'},
+    separationNote:`Latam excl MX AR --> Mon-Fri: 70% Off promo (Mon-Fri: vs Oferta Especial & Mon w/holiday CO) // Sat-Sun: 6+6 promo but TV Generic ad vs Oferta Especial w/Sun TV Off same Spend WOW.
+AR --> Same as Latam excl MX AR but Mon turned On TV vs Off Last Week.
+MX --> Mon-Fri: 70% Off promo vs 60%+Stanley promo //  Sat-Sun: TV Off on 6+6 promo (Digital). All week some SEM Brand campaigns Off.` },
   // Fila 9: "Ocultar Mexico porque tenia otra promo" (columna I) -- México corría una promo
   // distinta esos días, no es comparable al resto, se excluye por completo (hero y tabla).
   { id:'oe-latam-oferta-especial', deckId:'OE-LATAM',
