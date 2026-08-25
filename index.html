@@ -4857,8 +4857,14 @@ function slideYoy(){
 const LS_WEEK_LAMINA_STATE = 'brandedkpis_weeklamina_state_v1';
 let weekLaminaState = {};
 WEEK_LAMINA_ROWS.forEach(r => {
-  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: false, marketingTypeMode: false, marketingTypeMetric: 'leads' };
+  // hideBudget:true (comparison hidden by default) -- explicit ask 2026-08-24: this lámina's
+  // default view should lead with the current number, not the WOW comparison; the user opts INTO
+  // seeing "Sem. ant." rather than it always being on. weekdays:null already means "every weekday
+  // this period actually contains" (see periodWeekdaysIfShort) -- already the intended default,
+  // nothing to change there.
+  weekLaminaState[r.laminaId] = { cols: JSON.parse(JSON.stringify(YOY_VIEW_DEFAULTS.cols)), weekdays: null, hideActual: false, hideBudget: true, marketingTypeMode: false, marketingTypeMetric: 'leads' };
 });
+const WEEK_LAMINA_STATE_DEFAULTS = JSON.parse(JSON.stringify(weekLaminaState)); // pristine snapshot for "Restablecer filtros" -- captured BEFORE loadWeekLaminaState() below can mutate it from localStorage
 (function loadWeekLaminaState(){
   try{
     const saved = JSON.parse(localStorage.getItem(LS_WEEK_LAMINA_STATE)||'null');
@@ -4984,11 +4990,15 @@ function wireWeekLaminaWeekdaySelector(container, laminaId, onChange){
    este mismo día específicamente para esto; `spend`/`marketing_organization` ya existían). Nunca
    pasa por `buildDeckData()` — esto es una agregación ad-hoc bajo demanda, mismo patrón que
    `dailyTrackerRangeActuals()` ya usa para su propio rango de fechas libre. */
-function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck){
+// weekdaySet added 2026-08-24 -- real bug reported: filtering by weekday in the marketing-type
+// view never changed the table/hero at all, because this function (unlike aggregateYoyDaily(),
+// which the NORMAL country table reads through) never accepted or applied one.
+function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet){
   const rows = _rawByDeckCache[deckId].brandedTypeRows;
   const out = {}; // country -> type -> {leads, sales}
   for(const r of rows){
     if(r.date<startDate || r.date>endDate) continue;
+    if(weekdaySet && !weekdaySet.has(parseISODate(r.date).getDay())) continue;
     const c = bucketCountry(r.country, isBrazilDeck);
     if(c===null) continue;
     const byType = out[c] || (out[c] = {});
@@ -5000,11 +5010,11 @@ function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck){
 /* Same "Brazil joins as one more country" merge every other reader of this deck's data already
    does (yoyDailyRowsForDeck, actualFor/yoyFor above) — OE-BR's own rows, bucketed under 'Brazil',
    folded into OE-LATAM's own map when "Agregar Brasil" is on. */
-function weekLaminaTypeBreakdownForDeck(deckId, startDate, endDate, includeBrazilMerge){
+function weekLaminaTypeBreakdownForDeck(deckId, startDate, endDate, includeBrazilMerge, weekdaySet){
   const isBrazilDeck = DECKS[deckId].region === 'Brazil';
-  const out = weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck);
+  const out = weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet);
   if(includeBrazilMerge && deckId==='OE-LATAM'){
-    Object.assign(out, weekLaminaTypeBreakdown('OE-BR', startDate, endDate, true));
+    Object.assign(out, weekLaminaTypeBreakdown('OE-BR', startDate, endDate, true, weekdaySet));
   }
   return out;
 }
@@ -5168,8 +5178,8 @@ function weekWowSlide(row){
     const metric = state.marketingTypeMetric; // 'leads' | 'sales'
     const fmtField = metric==='sales' ? 'sales' : 'leads'; // 'share' also reads leads (see cellValue)
     const metricLabel = metric==='sales' ? L('Ventas','Sales') : metric==='share' ? L('% Share','% Share') : L('Leads','Leads');
-    const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil);
-    const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil);
+    const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil, weekdaySet);
+    const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil, weekdaySet);
     const emptyTB = {leads:0, sales:0};
     const forCountries = (byCountry, countries) => {
       const merged = {};
@@ -5418,6 +5428,7 @@ function renderGroupMenuWeekWow(){
     : `<div class="side-menu-header">${L('Columnas','Columns')}</div>
        ${YOY_COL_DEFS.map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`;
   menu.innerHTML = `
+    <button type="button" class="menu-reset-btn" id="weekWowResetBtn">↺ ${L('Restablecer filtros','Reset filters')}</button>
     <div class="group-menu-col">
       <div class="side-menu-header">${L('Vista','View')}</div>
       <label><input type="checkbox" data-week-hide="hideActual" ${state.hideActual?'checked':''}> ${L('Ocultar Valor Actual','Hide Actual value')}</label>
@@ -5431,6 +5442,7 @@ function renderGroupMenuWeekWow(){
       <div class="side-menu-header">${L('Filtrar por día de semana','Filter by weekday')}</div>
       ${weekLaminaWeekdaySelectorHtml(laminaId)}
     </div>`;
+  document.getElementById('weekWowResetBtn')?.addEventListener('click', ()=>resetWeekLaminaFilters(laminaId));
   menu.querySelectorAll('input[data-week-col]').forEach(inp=>{
     inp.addEventListener('change', e=>{
       state.cols[e.target.dataset.weekCol] = e.target.checked;
@@ -5456,12 +5468,28 @@ function renderGroupMenuWeekWow(){
   document.getElementById('includeBrazilToggleWeekWow')?.addEventListener('change', e=>{
     includeBrazil = e.target.checked;
     refreshAllForBrazilMerge();
-    if(currentWeekLaminaId) refreshSlideWeekWow(currentWeekLaminaId);
+    // Closure-bound `laminaId` (this menu's own, captured when it was built), not the global
+    // `currentWeekLaminaId` -- same value in the normal case, but never silently no-ops if that
+    // global were ever stale at click time (every OTHER control in this same menu already binds
+    // `laminaId` this way; this was the one handler that didn't).
+    refreshSlideWeekWow(laminaId);
   });
   wireWeekLaminaWeekdaySelector(menu.querySelector('#weekLaminaWeekdaySelector'), laminaId, ()=>{
     saveWeekLaminaState();
     refreshSlideWeekWow(laminaId);
   });
+}
+/* "Restablecer filtros" (explicit ask 2026-08-24, same pattern as Lámina A/Daily/YoY's own reset
+   buttons — see resetLaminaAFilters's comment) -- missing from this lámina's menu until now.
+   Vuelve el estado de ESTA lámina (cols/weekdays/hideActual/hideBudget/marketingTypeMetric) a su
+   snapshot de primera carga -- no toca marketingTypeMode (restablecer los FILTROS no debe sacar al
+   usuario de la vista de marketing type si ya estaba ahí, igual que los otros botones de reset no
+   cambian de lámina/slide). */
+function resetWeekLaminaFilters(laminaId){
+  Object.assign(weekLaminaState[laminaId], JSON.parse(JSON.stringify(WEEK_LAMINA_STATE_DEFAULTS[laminaId])), {marketingTypeMode: weekLaminaState[laminaId].marketingTypeMode});
+  saveWeekLaminaState();
+  refreshSlideWeekWow(laminaId);
+  renderGroupMenuWeekWow();
 }
 
 /* ---------------- BUILD / RENDER ---------------- */
