@@ -6347,6 +6347,21 @@ function silentReauth(){
     googleTokenClient.requestAccessToken({prompt: ''});
   });
 }
+/** Real bug reported 2026-08-25: a returning visitor reloaded the page and got stuck forever on
+ * "Cargando…" with the sign-in button disabled -- some step in the resume-and-load chain (exactly
+ * which one wasn't reproducible in testing, no real Google session available there) never settled,
+ * and nothing downstream of it had its own timeout. silentReauth() already guards itself (8s) but
+ * that only covers ONE possible hang point, not the whole chain (userinfo + 4 sequential Drive
+ * file fetches). This is the general safety net: whatever function is passed in gets 25s (generous
+ * -- a slow-but-genuinely-working load over a bad connection can take a while) before this forces
+ * a rejection, so the caller can always fall back to a usable, clickable login screen instead of
+ * hanging indefinitely. */
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(()=>reject(new Error('timeout')), ms)),
+  ]);
+}
 function onTokenAcquired(accessToken, expiresInSec){
   driveAccessToken = accessToken;
   saveAuthSession(accessToken, expiresInSec);
@@ -6467,7 +6482,13 @@ function initGoogleLogin(){
         return;
       }
       onTokenAcquired(response.access_token, response.expires_in);
-      onLoginSuccess();
+      withTimeout(onLoginSuccess(), 25000).catch(()=>{
+        // onLoginSuccess() already catches its OWN errors (shows its own message + re-enables the
+        // button) -- this only fires if it never settled at all within 25s, the exact "stuck on
+        // Cargando… forever" bug reported 2026-08-25.
+        setLoginBusy(false);
+        showLoginError(L('Se está tardando más de lo normal. Intenta iniciar sesión de nuevo.', 'This is taking longer than expected. Please try signing in again.'));
+      });
     },
   });
   document.getElementById('googleLoginBtn').addEventListener('click', () => {
@@ -6497,10 +6518,17 @@ async function tryResumeSession(){
     }
   }
   try{
-    await onLoginSuccess();
+    await withTimeout(onLoginSuccess(), 25000);
   }catch(e){
+    // Covers both onLoginSuccess()'s own thrown errors AND the 25s timeout itself (the exact
+    // "stuck on Cargando… forever, button disabled" bug reported 2026-08-25) -- either way, the
+    // saved session gets cleared (it's evidently not usable) and the button comes back so the
+    // visitor can do a normal, fresh, explicit sign-in instead of being stuck.
     clearAuthSession();
     setLoginBusy(false);
+    if(e.message==='timeout'){
+      showLoginError(L('Se está tardando más de lo normal. Intenta iniciar sesión de nuevo.', 'This is taking longer than expected. Please try signing in again.'));
+    }
   }
 }
 
