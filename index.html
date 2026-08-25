@@ -5052,12 +5052,20 @@ function wireWeekLaminaWeekdaySelector(container, laminaId, onChange){
 // weekdaySet added 2026-08-24 -- real bug reported: filtering by weekday in the marketing-type
 // view never changed the table/hero at all, because this function (unlike aggregateYoyDaily(),
 // which the NORMAL country table reads through) never accepted or applied one.
-function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet){
+// orgFilter added 2026-08-25 -- real bug reported: the "OE Adult | OE Junior" investment filter
+// (weekOrgKey, see weekWowSlide's own comment) visually appeared on this lámina's footer even
+// while in marketing-type mode, but clicking it did nothing there -- this function (the type-mode
+// table's OWN data source) never knew about it at all, unlike actualFor/yoyFor (the normal-mode
+// table's source, which weekWowSlide already wired up). raw.brandedTypeRows DOES carry
+// marketing_organization (confirmed: 'OE' / 'Open English Junior', same 2 values yoyDailyByMktOrg
+// uses) so the same filter applies here too, not just a UI note explaining it's unavailable.
+function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet, orgFilter){
   const rows = _rawByDeckCache[deckId].brandedTypeRows;
   const out = {}; // country -> type -> {leads, sales}
   for(const r of rows){
     if(r.date<startDate || r.date>endDate) continue;
     if(weekdaySet && !weekdaySet.has(parseISODate(r.date).getDay())) continue;
+    if(orgFilter && r.marketing_organization!==orgFilter) continue;
     const c = bucketCountry(r.country, isBrazilDeck);
     if(c===null) continue;
     const byType = out[c] || (out[c] = {});
@@ -5069,11 +5077,11 @@ function weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekd
 /* Same "Brazil joins as one more country" merge every other reader of this deck's data already
    does (yoyDailyRowsForDeck, actualFor/yoyFor above) — OE-BR's own rows, bucketed under 'Brazil',
    folded into OE-LATAM's own map when "Agregar Brasil" is on. */
-function weekLaminaTypeBreakdownForDeck(deckId, startDate, endDate, includeBrazilMerge, weekdaySet){
+function weekLaminaTypeBreakdownForDeck(deckId, startDate, endDate, includeBrazilMerge, weekdaySet, orgFilter){
   const isBrazilDeck = DECKS[deckId].region === 'Brazil';
-  const out = weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet);
+  const out = weekLaminaTypeBreakdown(deckId, startDate, endDate, isBrazilDeck, weekdaySet, orgFilter);
   if(includeBrazilMerge && deckId==='OE-LATAM'){
-    Object.assign(out, weekLaminaTypeBreakdown('OE-BR', startDate, endDate, true, weekdaySet));
+    Object.assign(out, weekLaminaTypeBreakdown('OE-BR', startDate, endDate, true, weekdaySet, orgFilter));
   }
   return out;
 }
@@ -5299,8 +5307,13 @@ function weekWowSlide(row){
     const metric = state.marketingTypeMetric; // 'leads' | 'sales'
     const fmtField = metric==='sales' ? 'sales' : 'leads'; // 'share' also reads leads (see cellValue)
     const metricLabel = metric==='sales' ? L('Ventas','Sales') : metric==='share' ? L('% Share','% Share') : L('Leads','Leads');
-    const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil, weekdaySet);
-    const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil, weekdaySet);
+    // weekOrgKey/WEEK_ORG_NAME come from the outer weekWowSlide() closure -- same investment
+    // filter the normal-mode table already respects (see actualFor/yoyFor there); this was the
+    // real gap reported 2026-08-25 ("no funcionan estos botones... no cambia nada en la tabla"
+    // -- true specifically in marketing-type mode, since this data source never read the filter).
+    const typeOrgFilter = weekOrgKey!=='total' ? WEEK_ORG_NAME[weekOrgKey] : null;
+    const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil, weekdaySet, typeOrgFilter);
+    const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil, weekdaySet, typeOrgFilter);
     const emptyTB = {leads:0, sales:0};
     const forCountries = (byCountry, countries) => {
       const merged = {};
