@@ -547,13 +547,13 @@ body.login-mode #zoomGroup{display:none;}
    ratios inside DIFFERENTLY SIZED available widths -- columns drifted further apart the more of
    them there were. Scoped override (not a change to the shared .daily-hero/.bh-kpis every other
    lámina's hero relies on) forces this specific hero's padding/gap to match the table exactly. */
-/* .daily-hero qualifier (not just .week-type-hero alone) is load-bearing, not decorative: both
+/* .daily-hero qualifier (not just .week-aligned-hero alone) is load-bearing, not decorative: both
    this rule and .daily-hero's own padding rule (defined LATER in this stylesheet) are single-!
    important, so without the extra class raising specificity, source order alone would let
    .daily-hero win the tie regardless of which rule "looks" more specific to a reader -- confirmed
    this the hard way (getComputedStyle showed 24px, not 20px, until this was added). */
-.daily-hero.week-type-hero{padding:var(--space-2) var(--space-5)!important;}
-.week-type-hero .bh-kpis{gap:var(--space-3);}
+.daily-hero.week-aligned-hero{padding:var(--space-2) var(--space-5)!important;}
+.week-aligned-hero .bh-kpis{gap:var(--space-3);}
 /* Real root cause, found from a live screenshot after the padding/gap fix above STILL didn't fix
    it: `grid-template-columns:1fr 1fr ...` does NOT force every track to the exact same width --
    a track whose content needs more than its "fair share" (default min-width:auto on grid items)
@@ -562,7 +562,7 @@ body.login-mode #zoomGroup{display:none;}
    (line ~904) so ITS tracks always respect the 1fr split exactly; `.bh-kpi` never needed that
    anywhere else in this deck (no other hero shares columns with a table below it) -- scoped here,
    not added to the shared `.bh-kpi` rule, so no other hero's layout can be affected. */
-.week-type-hero .bh-kpi{min-width:0;}
+.week-aligned-hero .bh-kpi{min-width:0;}
 
 /* ---- shared metric-cell: used in the blended hero AND every channel row, so every
    number in the slide (hero or detail) is built the same way and lines up visually.
@@ -5069,9 +5069,25 @@ function weekWowSlide(row){
   const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
   const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
 
-  const heroColsWeek = (isBrazil ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare') : HERO_COL_DEFS).filter(c=> state.cols[c.key]);
   const yCols = YOY_COL_DEFS.filter(c=> state.cols[c.key]);
-  const yGridTemplate = `1.25fr ${yCols.map(c=>c.weight+'fr').join(' ')}`;
+  // minmax(0,Xfr), not bare Xfr -- real bug found 2026-08-24 in the OTHER hero of this lámina
+  // (typeModeBodyHtml's, see its own comment): a bare `Xfr` track's minimum width defaults to its
+  // CONTENT's size, not 0, so a grid can resolve a column WIDER than its fair share whenever its
+  // content needs more room -- two grids sharing the identical template STRING can still end up
+  // with different actual column widths if their content sizes differ (exactly what was
+  // happening here: the hero's larger font forced its columns wider than the table's same columns
+  // at a smaller font). minmax(0,Xfr) forces every track to its exact fair share regardless of
+  // content, guaranteeing the hero and table below resolve to the SAME pixel boundaries.
+  const yGridTemplate = `1.25fr ${yCols.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}`;
+  // Real bug reported 2026-08-24 ("el SPEND no queda justo arriba de la tabla... así con lo
+  // demás"): heroColsWeek used to be a SEPARATE, smaller curated list (HERO_COL_DEFS) with its
+  // own order -- missing columns the table shows (Media Spend, Paid Social+Organic, etc.) and
+  // never meant to align 1:1 with it. Now it's the SAME list, SAME order as the table (`yCols`) --
+  // every visible column gets a matching hero tile in the matching position. Brazil has no table
+  // below the hero at all (single-hero layout), so it keeps its own simpler list untouched.
+  const heroColsWeek = isBrazil
+    ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare').filter(c=> state.cols[c.key])
+    : yCols;
 
   // Mirror of yoyCellHtml() — see this function's own top comment for why it's a duplicate, not a
   // call into slideYoy()'s own closure-scoped version. Kept byte-for-byte equivalent on purpose.
@@ -5123,6 +5139,11 @@ function weekWowSlide(row){
   }
   const bhKpisWeek = heroColsWeek.map(c=>{
     const h = weekHeroCell(c.key);
+    // LeadsShare/SalesShare/SpendShare have no single aggregate value (the hero itself IS the
+    // 100% total) -- weekHeroCell() has no case for them. An empty slot keeps every OTHER
+    // column's position matching the table below; only reachable for non-Brazil (Brazil's own
+    // heroColsWeek list above already excludes these 3 keys).
+    if(!h) return `<div class="bh-kpi bh-kpi-empty" data-metric="${c.key}"></div>`;
     const signCls = c.key==='FullCmPctShort' ? mcPctSignClass(h.av) : '';
     const cell = h.semaphore
       ? netImpactTemperatureCell(h.av)
@@ -5273,7 +5294,7 @@ function weekWowSlide(row){
     // `.bh-kpis` su propio gap entre columnas (16px), ninguno de los 2 igual al de la tabla (20px
     // de padding en `.ch-row`/`.ch-header-row`, 12px de `column-gap`) -- ambos grids formando
     // "1.25fr + N×1fr" pero dentro de anchos disponibles distintos, así que las columnas seguían
-    // sin coincidir en píxeles aunque las proporciones fueran idénticas. `week-type-hero` (ver CSS)
+    // sin coincidir en píxeles aunque las proporciones fueran idénticas. `week-aligned-hero` (ver CSS)
     // fuerza el padding/gap de este hero específico a igualar los de la tabla, sin tocar
     // `.daily-hero`/`.bh-kpis` compartidos por el resto de la app.
     const heroCellsByType = typeCols.map(col=>{
@@ -5283,7 +5304,7 @@ function weekWowSlide(row){
       return `<div class="bh-kpi${col===TOTAL_KEY?' total-col':''}" data-metric="${col}"><div><div class="label">${label}</div>${weekMetricCell(totalsA, totalsB, fmtFn, false, isPPMode)}</div></div>`;
     }).join('');
     const heroBlockTypeAligned = `
-      <div class="blended-hero daily-hero no-click week-type-hero">
+      <div class="blended-hero daily-hero no-click week-aligned-hero">
         <div class="bh-head"><span class="bh-badge">${metricLabel}</span><span class="bh-sub">${L('por marketing type','by marketing type')}</span></div>
         <div class="bh-kpis" style="grid-template-columns:${typeGridTemplate}"><div></div>${heroCellsByType}</div>
       </div>`;
@@ -5330,10 +5351,19 @@ function weekWowSlide(row){
   const subtitleEs = `${weekdayPrefixEs}${deckLabelWeek} · ${actualRangeLabel.es} vs ${compareRangeLabel.es} · ${compareLabelEs}`;
   const subtitleEn = `${weekdayPrefixEn}${deckLabelWeek} · ${actualRangeLabel.en} vs ${compareRangeLabel.en} · ${compareLabelEn}`;
 
-  const heroBlockHtmlWeek = `
+  // Brazil: no table below (single-hero layout) -- its own simple one-row grid, unchanged.
+  // Non-Brazil: same grid (`yGridTemplate`, already 1.25fr + minmax(0,Xfr) per column) and the
+  // same leading empty spacer as the table's header row, so every tile lines up with its column.
+  const heroBlockHtmlWeek = isBrazil
+    ? `
       <div class="blended-hero daily-hero no-click">
         <div class="bh-head"><span class="bh-badge">${L('Brand TV Channels','Brand TV Channels')}</span><span class="bh-sub">${heroSubWeek}</span></div>
         <div class="bh-kpis" style="grid-template-columns:${heroColsWeek.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpisWeek}</div>
+      </div>`
+    : `
+      <div class="blended-hero daily-hero no-click week-aligned-hero">
+        <div class="bh-head"><span class="bh-badge">${L('Brand TV Channels','Brand TV Channels')}</span><span class="bh-sub">${heroSubWeek}</span></div>
+        <div class="bh-kpis" style="grid-template-columns:${yGridTemplate}"><div></div>${bhKpisWeek}</div>
       </div>`;
   // "Detalle por marketing type" (botón 2) reemplaza la tabla de país normal por completo mientras
   // esté activo -- el hero de arriba nunca cambia. Botón vive en el footer (footerBar's rightExtra,
