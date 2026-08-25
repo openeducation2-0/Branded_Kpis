@@ -540,6 +540,20 @@ body.login-mode #zoomGroup{display:none;}
    divider rule above onto the first VISIBLE tile too (a border/padding no other hero in this deck
    shows on its first tile). Strip it back off specifically for the tile right after that spacer. */
 .bh-kpis > div:empty + .bh-kpi{border-left:none;padding-left:0;}
+/* Real bug fixed 2026-08-24 (3rd pass): an identical grid-template-columns string is NOT enough
+   for this hero to align pixel-for-pixel with the table below it -- `.daily-hero`'s own 24px
+   horizontal padding and `.bh-kpis`' own 16px column gap don't match the table's 20px row padding
+   / 12px column-gap (`.ch-row`/`.ch-header-row`), so both grids resolved the SAME "1.25fr + Nx1fr"
+   ratios inside DIFFERENTLY SIZED available widths -- columns drifted further apart the more of
+   them there were. Scoped override (not a change to the shared .daily-hero/.bh-kpis every other
+   lámina's hero relies on) forces this specific hero's padding/gap to match the table exactly. */
+/* .daily-hero qualifier (not just .week-type-hero alone) is load-bearing, not decorative: both
+   this rule and .daily-hero's own padding rule (defined LATER in this stylesheet) are single-!
+   important, so without the extra class raising specificity, source order alone would let
+   .daily-hero win the tie regardless of which rule "looks" more specific to a reader -- confirmed
+   this the hard way (getComputedStyle showed 24px, not 20px, until this was added). */
+.daily-hero.week-type-hero{padding:var(--space-2) var(--space-5)!important;}
+.week-type-hero .bh-kpis{gap:var(--space-3);}
 
 /* ---- shared metric-cell: used in the blended hero AND every channel row, so every
    number in the slide (hero or detail) is built the same way and lines up visually.
@@ -569,7 +583,11 @@ body.login-mode #zoomGroup{display:none;}
    ("gris clarito", explicit ask) so it reads as a caveat, not as part of the quoted content. */
 .week-note-body{margin-top:var(--space-3);line-height:1.5;}
 .week-note-body p{margin:0 0 10px 0;}
-.week-note-provisional{margin-top:var(--space-4);padding-top:12px;border-top:1px solid var(--border-soft);font-size:12px;color:var(--text-secondary);opacity:.7;font-style:italic;}
+.week-note-provisional{margin-top:var(--space-4);padding-top:10px;border-top:1px solid var(--border-soft);font-size:10px;color:var(--text-secondary);opacity:.55;}
+/* "el botón se bloquea y ya" -- explicit ask 2026-08-24: when a lámina's column K is empty, the
+   button stays visible (so all 7 láminas look consistent) but disabled, instead of fabricating
+   content from a different column. */
+.week-lamina-detail-btn:disabled{opacity:.4;cursor:not-allowed;}
 /* fitHeroDeltas() shrinks these too, not just .mc-delta — a long budget label ("Año ant.
    $234,018" in YoY, wider than Daily Tracker's "Bgt $X") can be the actual overflow culprit
    in a narrow column even after the delta text is already shrunk to its floor; confirmed via
@@ -1418,7 +1436,7 @@ const WEEK_LAMINA_ROWS = [
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
     actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
     tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Mon: 60% Off promo week 2 // Tue-Sat: Test generic Fluencia vs 60% Off+Salario en Dólar // Sun: TV Off like all Sun since Mar 30, 2026`, separationNoteFromK:true },
+    separationNote:`Mon: 60% Off promo week 2 // Tue-Sat: Test generic Fluencia vs 60% Off+Salario en Dólar // Sun: TV Off like all Sun since Mar 30, 2026` },
   // Fila 4 del Excel dice "OE Brazil Week Aug 17-23" en la columna Tapa aunque la Marca es Junior
   // -- corregido a "JR" aquí (2026-08-24, tras la confusión real que causó dejarlo literal): la
   // identidad de la tapa (Marca+Región+D) sigue siendo la de esta fila, solo se arregló el texto
@@ -1429,7 +1447,7 @@ const WEEK_LAMINA_ROWS = [
     laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
     actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
     tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Mon: 60% Off promo week 2 // Tue-Thu: Test generic Aprende Desde Cero Volta as Aulas vs 60% Off+same generic // Fri-Sun: TV Off WOW`, separationNoteFromK:true },
+    separationNote:`Mon: 60% Off promo week 2 // Tue-Thu: Test generic Aprende Desde Cero Volta as Aulas vs 60% Off+same generic // Fri-Sun: TV Off WOW` },
   { id:'oe-latam-aug17-23', deckId:'OE-LATAM',
     tapaId:'tapa-oe-latam-aug17-23', laminaId:'week-oe-latam-aug17-23',
     tapaTitleEs:'OE LatAm · Semana 17-23 ago', tapaTitleEn:'OE Latam · Week Aug 17-23',
@@ -1438,7 +1456,7 @@ const WEEK_LAMINA_ROWS = [
     tapaRange:{start:'2026-08-17', end:'2026-08-23'},
     separationNote:`Latam excl MX AR --> Mon-Sun: Oferta Espec (Mon-Tue: vs 60% Off -Mon CO holiday // Wed-Sun: week 2 // Sat: TV On vs Off //  Sun: TV Off since Mar 30, 2026)
 AR--> Mon: holiday TV off // Sat-Sun: TV Off.
-MX --> Mon-Fri:  60%+Stanley promo (Mon-Tue vs 60% Off, //  Wed-Fri vs Oferta Especial //  Sat-Sun: TV Off)`, separationNoteFromK:true },
+MX --> Mon-Fri:  60%+Stanley promo (Mon-Tue vs 60% Off, //  Wed-Fri vs Oferta Especial //  Sat-Sun: TV Off)` },
   // Fila 8: mismo caso que la fila 4, corregido igual.
   { id:'jr-latam-aug17-23', deckId:'JR-LATAM',
     tapaId:'tapa-jr-latam-aug17-23', laminaId:'week-jr-latam-aug17-23',
@@ -1448,7 +1466,7 @@ MX --> Mon-Fri:  60%+Stanley promo (Mon-Tue vs 60% Off, //  Wed-Fri vs Oferta Es
     tapaRange:{start:'2026-08-17', end:'2026-08-23'},
     separationNote:`Latam excl MX AR --> Mon: TV Off due to CO holiday, Tue: only day TV On during Oferta Espec (Digital).
 MX --> Mon-Tue: only days TV On during Oferta Espec vs 60% Off (Digital).
-AR --> TV Off AR-only feeds since May 18, 2026.`, separationNoteFromK:true },
+AR --> TV Off AR-only feeds since May 18, 2026.` },
   // Fila 9: "Ocultar Mexico porque tenia otra promo" (columna I) -- México corría una promo
   // distinta esos días, no es comparable al resto, se excluye por completo (hero y tabla).
   { id:'oe-latam-oferta-especial', deckId:'OE-LATAM',
@@ -1460,11 +1478,11 @@ AR --> TV Off AR-only feeds since May 18, 2026.`, separationNoteFromK:true },
     // primero decide en qué orden aparece la sección entera; lo segundo es solo lo que ESTA lámina
     // analiza dentro de esa sección.
     tapaRange:{start:'2026-08-12', end:'2026-08-23'},
-    hideCountries:['Mexico'],
-    // Esta fila (y las 2 de México Stanley debajo) no tienen nada en la columna K del Excel -- su
-    // narrativa vive en la columna I (Condiciones de la visual) en su lugar. separationNoteFromK
-    // en false hace que el modal lo aclare en vez de presentarlo como si fuera literal columna K.
-    separationNote:`Ocultar Mexico porque tenia otra promo`, separationNoteFromK:false },
+    hideCountries:['Mexico'] },
+  // Esta fila (y las 2 de México Stanley debajo) NO tienen nada en la columna K del Excel --
+  // pedido explícito 2026-08-24: el botón "Comentario Excel" debe mostrar SOLO columna K, nunca
+  // otra columna a modo de respaldo -- sin `separationNote`, el botón queda bloqueado (ver
+  // separationNoteBtn en weekWowSlide).
   // Filas 10-11: MISMA tapa (columna D idéntica), 2 láminas distintas debajo -- México es el país
   // de la promo (columna I: "debe estar resaltado"), comparado contra el benchmark "Latam excl MX
   // AR CO" que la misma columna nombra. Fila 11 compara contra una fecha EXPLÍCITA (columna H:
@@ -1476,9 +1494,7 @@ AR --> TV Off AR-only feeds since May 18, 2026.`, separationNoteFromK:true },
     actualRange:{start:'2026-08-17', end:'2026-08-21'}, compareRange:{start:'2026-08-10', end:'2026-08-14'},
     tapaRange:{start:'2026-08-17', end:'2026-08-21'},
     highlightCountries:['Mexico'], benchmarkCountries:LATAM_EXCL_MX_AR_CO,
-    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO',
-    separationNote:`Mexico es el pais de la promo, por lo que debe estar resaltado. Comparar su WOW vs el WOW de los paises benchmark (Latam excl MX AR CO)
-Stanley promo vs 60% Off (Mon-Tue WOW), Stanley promo vs Oferta Espec (Wed-Fri)`, separationNoteFromK:false },
+    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO' },
   { id:'oe-latam-mexico-stanley-vs60', deckId:'OE-LATAM',
     tapaId:'tapa-oe-latam-mexico-stanley', laminaId:'week-oe-latam-mexico-stanley-vs60',
     tapaTitleEs:'México 60% Off + Stanley Promo - 17-21 ago, 2026', tapaTitleEn:'Mexico 60% Off + Stanley Promo - Aug 17-21, 2026',
@@ -1489,8 +1505,7 @@ Stanley promo vs 60% Off (Mon-Tue WOW), Stanley promo vs Oferta Espec (Wed-Fri)`
     // estos 7 sin comparación de 7 días atrás; el subtítulo debe decirlo, no mostrar "WOW" a secas.
     compareLabelEs:'Personalizado', compareLabelEn:'Custom',
     highlightCountries:['Mexico'], benchmarkCountries:LATAM_EXCL_MX_AR_CO,
-    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO',
-    separationNote:`Mexico es el pais de la promo, por lo que debe estar resaltado. Comparar su performance vs el performance de los paises benchmark (Latam excl MX AR CO)`, separationNoteFromK:false },
+    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO' },
 ];
 const WEEK_LAMINA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.laminaId));
 const WEEK_TAPA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.tapaId));
@@ -5151,8 +5166,8 @@ function weekWowSlide(row){
      de KPIs, que no tiene ninguna relación columna-por-columna con esta tabla. */
   function typeModeBodyHtml(){
     const metric = state.marketingTypeMetric; // 'leads' | 'sales'
-    const fmtField = metric==='sales' ? 'sales' : 'leads';
-    const metricLabel = metric==='sales' ? L('Ventas','Sales') : L('Leads','Leads');
+    const fmtField = metric==='sales' ? 'sales' : 'leads'; // 'share' also reads leads (see cellValue)
+    const metricLabel = metric==='sales' ? L('Ventas','Sales') : metric==='share' ? L('% Share','% Share') : L('Leads','Leads');
     const actualTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.actualRange.start, row.actualRange.end, showMergedBrazil);
     const compareTypes = weekLaminaTypeBreakdownForDeck(row.deckId, row.compareRange.start, row.compareRange.end, showMergedBrazil);
     const emptyTB = {leads:0, sales:0};
@@ -5169,67 +5184,112 @@ function weekWowSlide(row){
       if(c===REST_LATAM_SUBTOTAL_KEY) return forCountries(byCountry, REST_LATAM_SUBTOTAL_COUNTRIES);
       return byCountry[c] || {};
     };
-    // Solo los marketing types que generan LEADS en el rango ANALIZADO -- pedido explícito ("solo
-    // los que tienen leads"), sin importar si la métrica mostrada ahora mismo es Ventas -- el
-    // criterio de calificación siempre es leads, ordenados por leads total de mayor a menor.
-    const totalLeadsByType = {}, qualifyingTypes = new Set();
     // Nunca sumar el pseudo-key de subtotal aquí -- displayRowsWeek lo lista JUNTO a los países que
     // resume (Colombia/Chile/Ecuador/Perú/Costa Rica/Otros), así que sumarlo también duplicaría
     // esos 6 países (bug real encontrado 2026-08-24: el hero daba más que la suma real de países).
     // El benchmark de una lámina de país específico (BENCHMARK_KEY) SÍ se suma -- su lista de
     // países nunca se solapa con highlightCountries.
     const scopeCountries = isBrazil ? ['Brazil'] : displayRowsWeek.filter(c=>c!==REST_LATAM_SUBTOTAL_KEY);
+    // Un marketing type califica si tuvo leads en CUALQUIERA de los 2 períodos -- corregido
+    // 2026-08-24: el criterio anterior solo miraba el período ACTUAL, así que un type con leads la
+    // semana pasada pero 0 esta semana (una caída real a 0, información válida) desaparecía de la
+    // tabla en vez de mostrarse como "0 vs N". Ahora se recorren AMBOS mapas de types (un type solo
+    // presente en uno de los 2 nunca aparece como key en el otro) y se exige >0 en al menos uno.
+    const totalLeadsByType = {}, compareLeadsByType = {};
     scopeCountries.forEach(c => {
-      Object.entries(typeFor(actualTypes, c)).forEach(([t,v]) => {
-        totalLeadsByType[t] = (totalLeadsByType[t]||0) + v.leads;
-        if(v.leads>0) qualifyingTypes.add(t);
-      });
+      Object.entries(typeFor(actualTypes, c)).forEach(([t,v]) => { totalLeadsByType[t] = (totalLeadsByType[t]||0) + v.leads; });
+      Object.entries(typeFor(compareTypes, c)).forEach(([t,v]) => { compareLeadsByType[t] = (compareLeadsByType[t]||0) + v.leads; });
     });
+    const qualifyingTypes = new Set([...Object.keys(totalLeadsByType), ...Object.keys(compareLeadsByType)]
+      .filter(t => (totalLeadsByType[t]||0)>0 || (compareLeadsByType[t]||0)>0));
     const types = [...qualifyingTypes].sort((a,b)=>(totalLeadsByType[b]||0)-(totalLeadsByType[a]||0));
     if(!types.length){
       return `${heroBlockHtmlWeek}
         <div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
-        <div class="empty-note">${L('Ningún marketing type generó leads en este período.','No marketing type generated leads this period.')}</div>`;
+        <div class="empty-note">${L('Ningún marketing type generó leads en ninguno de los 2 períodos.','No marketing type generated leads in either period.')}</div>`;
     }
-    const typeGridTemplate = `1.25fr ${types.map(()=>'1fr').join(' ')}`;
-    // Hero alineado — una tarjeta por type, en la MISMA columna que le corresponde en la tabla.
-    // Bug real encontrado y corregido 2026-08-24 (2ª vuelta): el grid del hero quitaba la franja
-    // "1.25fr" en vez de reservarla vacía como hace el header de la tabla (línea de abajo, con su
-    // `<div></div>` inicial) -- eso corría CADA tarjeta una columna hacia la izquierda respecto a
-    // la tabla (tarjeta 1 quedaba sobre la columna de nombre de país, tarjeta 2 sobre la columna
-    // del type 1, etc.), y además con un ancho distinto (el hero repartía el 100% del ancho entre
-    // N tarjetas, la tabla reparte el resto DESPUÉS de la franja de nombre más ancha). Ahora el
-    // hero usa el MISMO grid-template que la tabla, con un primer `<div></div>` vacío igual que el
-    // header -- cada tarjeta cae exactamente sobre su columna real.
-    const heroCellsByType = types.map(t=>{
-      const totalsA = scopeCountries.reduce((s,c)=>s+((typeFor(actualTypes,c)[t]||emptyTB)[fmtField]), 0);
-      const totalsB = scopeCountries.reduce((s,c)=>s+((typeFor(compareTypes,c)[t]||emptyTB)[fmtField]), 0);
-      return `<div class="bh-kpi" data-metric="${t}"><div><div class="label">${t}</div>${weekMetricCell(totalsA, totalsB, fmtNum, false, false)}</div></div>`;
+    // "Total" -- pedido explícito 2026-08-24: última columna, suma de los types reales (o, en modo
+    // Share, 100% por definición -- ver cellValue). Pseudo-key igual que BENCHMARK_KEY/
+    // REST_LATAM_SUBTOTAL_KEY, nunca choca con un nombre de type real.
+    const TOTAL_KEY = '__WeekTypeTotal__';
+    const typeCols = [...types, TOTAL_KEY];
+    const typeGridTemplate = `1.25fr ${typeCols.map(()=>'1fr').join(' ')}`;
+    const fmtFn = metric==='share' ? fmtPct : fmtNum;
+    const isPPMode = metric==='share'; // metric ya es un %, el delta debe ir en pp, no "% de un %"
+    // Valor de una celda país×columna en UN período -- Total suma los types reales; Share divide
+    // por la suma REAL de leads de ESE país en ESE período (nunca por el valor ya convertido a
+    // Ventas) -- "Share" en esta vista siempre es sobre Leads, mismo criterio que decide qué types
+    // entran a la tabla.
+    function cellValue(byCountry, c, col){
+      const typesObj = typeFor(byCountry, c);
+      if(metric==='share'){
+        const rowTotal = types.reduce((s,t)=>s+((typesObj[t]||emptyTB).leads), 0);
+        if(!rowTotal) return null;
+        const num = col===TOTAL_KEY ? rowTotal : (typesObj[col]||emptyTB).leads;
+        return num/rowTotal;
+      }
+      if(col===TOTAL_KEY) return types.reduce((s,t)=>s+((typesObj[t]||emptyTB)[fmtField]), 0);
+      return (typesObj[col]||emptyTB)[fmtField];
+    }
+    // Hero: SUMAR países para Leads/Ventas (aditivo, correcto); para Share, sumar numerador y
+    // denominador POR SEPARADO y dividir al final -- promediar los % de cada país directamente
+    // sería matemáticamente incorrecto (un país chico y uno grande no pesan igual).
+    function heroValue(byCountry, col){
+      if(metric!=='share') return scopeCountries.reduce((s,c)=>s+cellValue(byCountry,c,col), 0);
+      let num=0, denom=0;
+      scopeCountries.forEach(c=>{
+        const typesObj = typeFor(byCountry, c);
+        const rowTotal = types.reduce((s,t)=>s+((typesObj[t]||emptyTB).leads), 0);
+        denom += rowTotal;
+        num += col===TOTAL_KEY ? rowTotal : (typesObj[col]||emptyTB).leads;
+      });
+      return denom ? num/denom : null;
+    }
+    // Hero alineado — una tarjeta por columna (types + Total), en la MISMA columna que le
+    // corresponde en la tabla. Bug real encontrado y corregido 2026-08-24 (2ª vuelta): el grid del
+    // hero quitaba la franja "1.25fr" en vez de reservarla vacía como hace el header de la tabla
+    // (línea de abajo, con su `<div></div>` inicial) -- eso corría cada tarjeta una columna hacia
+    // la izquierda respecto a la tabla. Corrección adicional (3ª vuelta, real): tener el MISMO
+    // grid-template-columns no bastaba -- `.daily-hero` trae su propio padding horizontal (24px) y
+    // `.bh-kpis` su propio gap entre columnas (16px), ninguno de los 2 igual al de la tabla (20px
+    // de padding en `.ch-row`/`.ch-header-row`, 12px de `column-gap`) -- ambos grids formando
+    // "1.25fr + N×1fr" pero dentro de anchos disponibles distintos, así que las columnas seguían
+    // sin coincidir en píxeles aunque las proporciones fueran idénticas. `week-type-hero` (ver CSS)
+    // fuerza el padding/gap de este hero específico a igualar los de la tabla, sin tocar
+    // `.daily-hero`/`.bh-kpis` compartidos por el resto de la app.
+    const heroCellsByType = typeCols.map(col=>{
+      const totalsA = heroValue(actualTypes, col);
+      const totalsB = heroValue(compareTypes, col);
+      const label = col===TOTAL_KEY ? L('Total','Total') : col;
+      return `<div class="bh-kpi${col===TOTAL_KEY?' total-col':''}" data-metric="${col}"><div><div class="label">${label}</div>${weekMetricCell(totalsA, totalsB, fmtFn, false, isPPMode)}</div></div>`;
     }).join('');
     const heroBlockTypeAligned = `
-      <div class="blended-hero daily-hero no-click">
+      <div class="blended-hero daily-hero no-click week-type-hero">
         <div class="bh-head"><span class="bh-badge">${metricLabel}</span><span class="bh-sub">${L('por marketing type','by marketing type')}</span></div>
         <div class="bh-kpis" style="grid-template-columns:${typeGridTemplate}"><div></div>${heroCellsByType}</div>
       </div>`;
-    const typeHeaderCells = types.map(t=>`<div class="metric-col">${t}</div>`).join('');
+    const typeHeaderCells = typeCols.map(col=>`<div class="metric-col${col===TOTAL_KEY?' total-col col-divider':''}">${col===TOTAL_KEY?L('Total','Total'):col}</div>`).join('');
     function typeRowHtml(c){
-      const a = typeFor(actualTypes, c), b = typeFor(compareTypes, c);
       const isBenchOrSub = c===BENCHMARK_KEY || c===REST_LATAM_SUBTOTAL_KEY;
       const label = c===BENCHMARK_KEY ? L(row.benchmarkLabelEs, row.benchmarkLabelEn) : c===REST_LATAM_SUBTOTAL_KEY ? 'LT Excl. MX & AR' : (LANG==='es' ? COUNTRY_LABEL_ES[c] : COUNTRY_LABEL_EN[c]);
       const isHighlighted = !!(row.highlightCountries && row.highlightCountries.includes(c));
       const nameHtml = isBenchOrSub
         ? `<div class="ch-name">${iconChip('globe','var(--brand-accent)')}<div class="ch-text"><h4>${label}</h4></div></div>`
         : `<div class="ch-name">${flagIcon(c)}<div class="ch-text"><h4>${label}</h4></div></div>`;
-      const cells = types.map(t => {
-        const av = (a[t]||emptyTB)[fmtField], bv = (b[t]||emptyTB)[fmtField];
-        return `<div class="metric-col" data-metric="${t}">${weekMetricCell(av, bv, fmtNum, false, false)}</div>`;
+      const cells = typeCols.map(col => {
+        const av = cellValue(actualTypes, c, col), bv = cellValue(compareTypes, c, col);
+        return `<div class="metric-col${col===TOTAL_KEY?' total-col col-divider':''}" data-metric="${col}">${weekMetricCell(av, bv, fmtFn, false, isPPMode)}</div>`;
       }).join('');
       return `<div class="ch-row no-click${isBenchOrSub?' subtotal-row':''}${isHighlighted?' week-lamina-highlight':''}" style="grid-template-columns:${typeGridTemplate}">
         ${nameHtml}
         ${cells}
       </div>`;
     }
-    const bodyRows = isBrazil ? typeRowHtml('Brazil') : displayRowsWeek.map(typeRowHtml).join('');
+    // Brasil: SOLO el hero -- pedido explícito 2026-08-24 ("ya habíamos hablado de este tema"),
+    // mismo criterio que el modo normal (heroBlockHtmlWeek) ya aplica: Brasil es un solo país, así
+    // que una tabla de 1 fila repetiría exactamente los mismos números que el hero de arriba.
+    if(isBrazil) return heroBlockTypeAligned;
+    const bodyRows = displayRowsWeek.map(typeRowHtml).join('');
     return `${heroBlockTypeAligned}
       <div class="detail-label daily-detail-label">${L('Marketing type por país','Marketing type by country')}</div>
       <div class="channel-table daily-table">
@@ -5272,7 +5332,10 @@ function weekWowSlide(row){
   // 2) no alcanza a construirse ya mismo, así que este botón sustituye por ahora el detalle de
   // creativos rotando por el comentario crudo de la Plantilla PPT Laminas.xlsx para esta fila (ver
   // weekSeparationNoteModalHtml) -- un modal simple, no un modo de la lámina como el de arriba.
-  const separationNoteBtn = row.separationNote ? `<button type="button" class="week-lamina-detail-btn" data-week-note-toggle="${row.laminaId}">${L('Comentario Excel','Excel comment')}</button>` : '';
+  // Corrección explícita 2026-08-24: SOLO columna K, nunca otra columna a modo de respaldo -- el
+  // botón se muestra siempre (para que las 7 láminas se vean consistentes) pero queda bloqueado
+  // (`disabled`) cuando la fila no tiene nada en columna K, en vez de inventar contenido.
+  const separationNoteBtn = `<button type="button" class="week-lamina-detail-btn" data-week-note-toggle="${row.laminaId}"${row.separationNote?'':' disabled'}>${L('Comentario Excel','Excel comment')}</button>`;
   return `<section class="slide slide-weekwow${isBrazil?' slide-daily-br':''}${state.hideActual?' hide-actual-value':''}${state.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom(row.laminaId)}"><div class="slide-inner">
     ${headerBlock('s-'+row.laminaId, row.laminaTitleEs, row.laminaTitleEn, subtitleEs, subtitleEn)}
     <div class="slide-body centered-stack${isBrazil?' single-hero':''}">${bodyHtmlWeek}
@@ -5311,18 +5374,16 @@ function wireWeekLaminaDetailButtons(){
 /* Modal del botón "Comentario Excel" -- provisional (pedido explícito 2026-08-24: la Fase 2 real
    -- ingesta de Rotacion 2025/2026.xlsx + % de rotación por creativo -- no alcanza a construirse
    ahora). Muestra tal cual (sin traducir -- es una cita textual, no copy de producto) el
-   comentario de la fila en Plantilla PPT Laminas.xlsx: columna K ("Motivo de Separación") cuando
-   la fila la tiene, o si no (las 3 filas "Promo": esa columna viene vacía en el Excel, su
-   narrativa vive en la columna I en su lugar) el comentario de esa otra columna -- el modal
-   aclara cuál de las 2 fuentes es, en vez de presentar la segunda como si fuera literal columna K. */
+   comentario EXACTO de la columna K ("Motivo de Separación") de Plantilla PPT Laminas.xlsx para
+   esa fila. Corrección explícita 2026-08-24: SOLO columna K -- nunca otra columna a modo de
+   respaldo (el botón que llama a esto ya viene `disabled` cuando `row.separationNote` no existe,
+   así que este modal solo se abre cuando sí hay algo real que mostrar). Nota de "provisional" en
+   una sola línea, deliberadamente discreta -- pedido explícito ("debe ser más sutil"). */
 function weekSeparationNoteModalHtml(row){
   const noteHtml = row.separationNote.split('\n').map(line=>`<p>${line}</p>`).join('');
-  const sourceNote = row.separationNoteFromK
-    ? L('Comentario original de la columna K ("Motivo de Separación") de Plantilla PPT Laminas.xlsx.','Original comment from column K ("Motivo de Separación") in Plantilla PPT Laminas.xlsx.')
-    : L('Esta lámina no tiene comentario en la columna K del Excel -- se muestra en su lugar el de la columna "Condiciones de la visual" para esta fila.','This lámina has no column K comment in the Excel -- showing the "Condiciones de la visual" column comment for this row instead.');
   return `<div class="modal-head"><h3>${L(row.laminaTitleEs, row.laminaTitleEn)}</h3></div>
     <div class="week-note-body">${noteHtml}</div>
-    <div class="week-note-provisional">${L('Nota: este detalle es provisional, mientras se construye el análisis real de rotación de creativos.','Note: this detail is provisional, while the real creative-rotation analysis gets built.')} ${sourceNote}</div>`;
+    <div class="week-note-provisional">${L('Comentario original de la columna K de Plantilla PPT Laminas.xlsx -- detalle provisional.','Original comment from column K of Plantilla PPT Laminas.xlsx -- provisional detail.')}</div>`;
 }
 /* Single shared #groupMenuWeekWow slot (see its own div/CSS comments) — figures out which of the
    N week-láminas is currently on screen from SLIDES itself (mirrors how updateOnLaminaA() detects
@@ -5350,9 +5411,10 @@ function renderGroupMenuWeekWow(){
   // varios". Vista y día de semana no cambian en absoluto.
   const inTypeMode = state.marketingTypeMode;
   const columnasSectionHtml = inTypeMode
-    ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(Leads o Ventas)','(Leads or Sales)')}</span></div>
+    ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(selección única)','(single select)')}</span></div>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="leads" ${state.marketingTypeMetric==='leads'?'checked':''}> ${L('Leads','Leads')}</label>
-       <label><input type="radio" name="weekTypeMetric" data-week-type-metric="sales" ${state.marketingTypeMetric==='sales'?'checked':''}> ${L('Ventas','Sales')}</label>`
+       <label><input type="radio" name="weekTypeMetric" data-week-type-metric="sales" ${state.marketingTypeMetric==='sales'?'checked':''}> ${L('Ventas','Sales')}</label>
+       <label><input type="radio" name="weekTypeMetric" data-week-type-metric="share" ${state.marketingTypeMetric==='share'?'checked':''}> ${L('% Share','% Share')}</label>`
     : `<div class="side-menu-header">${L('Columnas','Columns')}</div>
        ${YOY_COL_DEFS.map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`;
   menu.innerHTML = `
