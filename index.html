@@ -554,6 +554,15 @@ body.login-mode #zoomGroup{display:none;}
    this the hard way (getComputedStyle showed 24px, not 20px, until this was added). */
 .daily-hero.week-type-hero{padding:var(--space-2) var(--space-5)!important;}
 .week-type-hero .bh-kpis{gap:var(--space-3);}
+/* Real root cause, found from a live screenshot after the padding/gap fix above STILL didn't fix
+   it: `grid-template-columns:1fr 1fr ...` does NOT force every track to the exact same width --
+   a track whose content needs more than its "fair share" (default min-width:auto on grid items)
+   is allowed to grow past it, pushing every track after it out of alignment with anything else
+   using the identical template string. The table's own `.metric-col` already has `min-width:0`
+   (line ~904) so ITS tracks always respect the 1fr split exactly; `.bh-kpi` never needed that
+   anywhere else in this deck (no other hero shares columns with a table below it) -- scoped here,
+   not added to the shared `.bh-kpi` rule, so no other hero's layout can be affected. */
+.week-type-hero .bh-kpi{min-width:0;}
 
 /* ---- shared metric-cell: used in the blended hero AND every channel row, so every
    number in the slide (hero or detail) is built the same way and lines up visually.
@@ -5045,7 +5054,7 @@ function weekWowSlide(row){
   // the user flagged as looking broken/unfinished ("no puede quedar esa especie vacío").
   function weekMetricCell(av, bv, fmtFn, invert, isPP, extraActualClass, forceGray){
     if(state.hideActual && state.hideBudget && (av==null || bv===0)){
-      return `<div class="metric-cell"><div class="mc-empty-note">${L('Sin datos para comparar','No comparable data')}</div></div>`;
+      return `<div class="metric-cell"><div class="mc-empty-note">${L('Sin datos','No data')}</div></div>`;
     }
     return metricCell(av, bv, fmtFn, invert, isPP, extraActualClass, weekCompareLabel, false, forceGray);
   }
