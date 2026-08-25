@@ -557,22 +557,23 @@ body.login-mode #zoomGroup{display:none;}
    ratios inside DIFFERENTLY SIZED available widths -- columns drifted further apart the more of
    them there were. Scoped override (not a change to the shared .daily-hero/.bh-kpis every other
    lámina's hero relies on) forces this specific hero's padding/gap to match the table exactly. */
-/* .daily-hero qualifier (not just .week-aligned-hero alone) is load-bearing, not decorative: both
-   this rule and .daily-hero's own padding rule (defined LATER in this stylesheet) are single-!
-   important, so without the extra class raising specificity, source order alone would let
-   .daily-hero win the tie regardless of which rule "looks" more specific to a reader -- confirmed
-   this the hard way (getComputedStyle showed 24px, not 20px, until this was added). */
-.daily-hero.week-aligned-hero{padding:var(--space-2) var(--space-5)!important;}
-.week-aligned-hero .bh-kpis{gap:var(--space-3);}
+/* .daily-hero qualifier (not just .week-aligned-hero/.yoy-aligned-hero alone) is load-bearing, not
+   decorative: both this rule and .daily-hero's own padding rule (defined LATER in this stylesheet)
+   are single-!important, so without the extra class raising specificity, source order alone would
+   let .daily-hero win the tie regardless of which rule "looks" more specific to a reader --
+   confirmed this the hard way (getComputedStyle showed 24px, not 20px, until this was added). */
+.daily-hero.week-aligned-hero, .daily-hero.yoy-aligned-hero{padding:var(--space-2) var(--space-5)!important;}
+.week-aligned-hero .bh-kpis, .yoy-aligned-hero .bh-kpis{gap:var(--space-3);}
 /* Real root cause, found from a live screenshot after the padding/gap fix above STILL didn't fix
    it: `grid-template-columns:1fr 1fr ...` does NOT force every track to the exact same width --
    a track whose content needs more than its "fair share" (default min-width:auto on grid items)
    is allowed to grow past it, pushing every track after it out of alignment with anything else
    using the identical template string. The table's own `.metric-col` already has `min-width:0`
-   (line ~904) so ITS tracks always respect the 1fr split exactly; `.bh-kpi` never needed that
-   anywhere else in this deck (no other hero shares columns with a table below it) -- scoped here,
-   not added to the shared `.bh-kpi` rule, so no other hero's layout can be affected. */
-.week-aligned-hero .bh-kpi{min-width:0;}
+   (line ~904) so ITS tracks always respect the 1fr split exactly; `.bh-kpi` needs the same override
+   wherever a hero shares columns with a table below it (the "Semana WOW" láminas, and — since
+   2026-08-25 — the real YoY lámina's own LatAm hero too) -- scoped to these 2 classes, not added
+   to the shared `.bh-kpi` rule, so no single-hero (no table below) lámina's layout can be affected. */
+.week-aligned-hero .bh-kpi, .yoy-aligned-hero .bh-kpi{min-width:0;}
 
 /* ---- shared metric-cell: used in the blended hero AND every channel row, so every
    number in the slide (hero or detail) is built the same way and lines up visually.
@@ -4228,9 +4229,9 @@ const HERO_COL_DEFS = COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='Sales
    and Daily Tracker's own Vista menus (renderGroupMenu()/renderGroupMenuDaily() both do the same
    COL_DEFS.map() pattern renderGroupMenuYoy() does below) — those laminas have no YoY comparison
    basis to compute any of these three from, so they must never appear as togglable there.
-   Table-only (never added to HERO_COL_DEFS/heroColsYoy) — the user asked for these as columns,
-   never mentioned the hero tiles, and hero is a blended/company-total view where "per-country"
-   metrics like these read oddly anyway. Built by splicing into a COPY of COL_DEFS at the exact
+   Reachable in both the country table AND every hero that shares its columns with a table below
+   it (Brazil's single-hero layout, and — since 2026-08-25 — LatAm's own hero too, see
+   heroColsYoy's comment in slideYoy()). Built by splicing into a COPY of COL_DEFS at the exact
    requested positions (Media Spend right after Spend, Media CPL right after CPL/before
    Conversion, Paid+Organic spend at the very end) rather than hand-duplicating the whole array,
    so a future edit to COL_DEFS's own entries/order doesn't need a second copy kept in sync by
@@ -4694,6 +4695,13 @@ function slideYoy(){
   const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
   const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
 
+  const yCols = YOY_COL_DEFS.filter(c=> yoyView.cols[c.key]);
+  // minmax(0,Xfr), not bare Xfr: an identical grid-template-columns STRING doesn't force equal
+  // track widths on its own -- a track whose content needs more than its "fair share" (default
+  // min-width:auto) can still grow past it (see the CSS comment on .week-aligned-hero/
+  // .yoy-aligned-hero .bh-kpi for the full history of this bug). Reused verbatim below for the
+  // hero, the header row, AND every country row, so all 3 always resolve to the same pixels.
+  const yGridTemplate = `1.25fr ${yCols.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}`;
   // Brazil has no per-country table below the hero (single aggregated row, see .single-hero) --
   // its hero IS the only display surface, so Media Spend/Media CPL/Paid Social+Organic (normally
   // table-only, see YOY_COL_DEFS's own comment) must be reachable there too, or toggling them on
@@ -4702,9 +4710,17 @@ function slideYoy(){
   // regiones", not a data or rendering bug). Still excludes the 3 Share metrics (%Leads/%Sales/
   // %Spend) for the same reason HERO_COL_DEFS itself excludes them -- a share of Brazil's own
   // single total is meaningless.
-  const heroColsYoy = (isBrazil ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare') : HERO_COL_DEFS).filter(c=> yoyView.cols[c.key]);
-  const yCols = YOY_COL_DEFS.filter(c=> yoyView.cols[c.key]);
-  const yGridTemplate = `1.25fr ${yCols.map(c=>c.weight+'fr').join(' ')}`;
+  // LatAm (non-Brazil): heroColsYoy is now literally yCols -- same list, same order, same
+  // positions as the table below (real bug reported 2026-08-25: selecting e.g. Media Spend added
+  // it to the country table but never to this hero, because this branch used to filter against
+  // the narrower HERO_COL_DEFS, which doesn't even define Media Spend/Media CPL/Paid
+  // Social+Organic as keys). The hero still can't show a meaningful number for the 3 Share
+  // metrics (a share of the blended total is undefined), so those render as an empty slot instead
+  // (see bhKpisYoy below) -- full column-POSITION parity with the table, not full column-CONTENT
+  // parity.
+  const heroColsYoy = isBrazil
+    ? YOY_COL_DEFS.filter(c=> c.key!=='LeadsShare' && c.key!=='SalesShare' && c.key!=='SpendShare').filter(c=> yoyView.cols[c.key])
+    : yCols;
 
   function yoyCellHtml(key, a, b, country){
     switch(key){
@@ -4745,7 +4761,7 @@ function slideYoy(){
   function heroCellYoy(key){
     switch(key){
       case 'Spend': return {icon:'wallet', label:'Spend', av:heroActual.Spend, bv:heroYoy.Spend, fmt:fmtUSD, invert:true, pp:false};
-      // Media Spend/CPL/Paid+Organic: only reachable here for Brazil (see heroColsYoy's own
+      // Media Spend/CPL/Paid+Organic: reachable on every deck now (see heroColsYoy's own
       // comment) -- same formulas as yoyCellHtml's table cases, just fed by heroActual/heroYoy.
       case 'MediaSpend': return {icon:'wallet', label:'Media Spend', av:heroActual.MediaSpend, bv:heroYoy.MediaSpend, fmt:fmtUSD, invert:true, pp:false};
       case 'PaidOrganicSpend': return {icon:'wallet', label:L('Paid Social + Organic','Paid Social + Organic'), av:heroActual.PaidOrganicSpend, bv:heroYoy.PaidOrganicSpend, fmt:fmtUSD, invert:false, pp:false};
@@ -4776,6 +4792,12 @@ function slideYoy(){
   }
   const bhKpisYoy = heroColsYoy.map(c=>{
     const h = heroCellYoy(c.key);
+    // LeadsShare/SalesShare/SpendShare have no single aggregate value (the hero itself IS the
+    // 100% total) -- heroCellYoy() has no case for them. An empty slot keeps every OTHER
+    // column's position matching the table below; only reachable for non-Brazil (Brazil's own
+    // heroColsYoy list above already excludes these 3 keys) -- same pattern as weekWowSlide's
+    // own bhKpisWeek.
+    if(!h) return `<div class="bh-kpi bh-kpi-empty" data-metric="${c.key}"></div>`;
     // 'Impact'/Net Impact is the only YOY hero metric with NO real second side to compare against
     // (it's already a diff-of-diffs, see impact()'s comment) — muted single-value, same as
     // Lámina A's/Daily Tracker's own heroCell*() 'Impact' case, unlike LtvShort/FullUnitCmShort
@@ -4890,10 +4912,24 @@ function slideYoy(){
   const heroCountries = isBrazil ? 'Brazil' : null;
   const heroScopeLabel = isBrazil ? regionLabel() : L(`Consolidado ${regionLabel()}`,`Consolidated ${regionLabel()}`);
   const heroNameAttrs = heroMktOrgClickable ? ` data-modal="yoy-mktorg" data-country="${heroCountries||'__ALL__'}" data-country-label="${heroScopeLabel}"` : '';
-  const heroBlockHtmlYoy = `
+  // Real bug fixed 2026-08-25: LatAm's hero used to build its own grid-template-columns string
+  // from heroColsYoy's weights alone -- close to, but never byte-identical with, the table's own
+  // yGridTemplate (no leading "1.25fr" name-column slot, no minmax) -- so it drifted out of
+  // alignment with the country table below the more columns were visible, same root cause already
+  // found and fixed for the "Semana WOW" láminas (see heroBlockHtmlWeek's own comment). Non-Brazil
+  // now reuses yGridTemplate verbatim, plus a leading empty <div></div> matching the table's own
+  // name-column slot. Brazil has no table below (single-hero layout) so it keeps its original,
+  // already-correct grid untouched.
+  const heroBlockHtmlYoy = isBrazil
+    ? `
       <div class="blended-hero daily-hero no-click">
         <div class="bh-head${heroMktOrgClickable?' mktorg-clickable':''}"${heroNameAttrs}><span class="bh-badge">${heroLabelYoy}</span><span class="bh-sub">${heroSubYoy}</span></div>
         <div class="bh-kpis" style="grid-template-columns:${heroColsYoy.map(c=>`minmax(0,${c.weight}fr)`).join(' ')}">${bhKpisYoy}</div>
+      </div>`
+    : `
+      <div class="blended-hero daily-hero no-click yoy-aligned-hero">
+        <div class="bh-head${heroMktOrgClickable?' mktorg-clickable':''}"${heroNameAttrs}><span class="bh-badge">${heroLabelYoy}</span><span class="bh-sub">${heroSubYoy}</span></div>
+        <div class="bh-kpis" style="grid-template-columns:${yGridTemplate}"><div></div>${bhKpisYoy}</div>
       </div>`;
   const bodyHtmlYoy = isBrazil ? heroBlockHtmlYoy : `${heroBlockHtmlYoy}
       <div class="detail-label daily-detail-label">${L('Detalle por país','Detail by country')}</div>
