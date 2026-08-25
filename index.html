@@ -5140,17 +5140,47 @@ function weekWowSlide(row){
   }
   const weekOrgKey = weekMktOrgKey();
   const WEEK_ORG_NAME = {adultOnly:'OE', juniorOwn:'Open English Junior'};
-  // Only Leads/Sales/NewCash are honestly splittable by org (same MKTORG_SHARE_METRICS the real
-  // YoY modal already restricts to, reused verbatim -- see that constant's own comment: Spend
-  // isn't, because OE's own slice inside Junior's funnel is always $0 in real data, not a
-  // meaningful split). state.cols gets restricted to just these while non-"total" (see
-  // renderGroupMenuWeekWow) so no other column ever tries to render off a field this path can't
-  // honestly provide.
+  // Corrección real 2026-08-25 ("por qué no funcionan igual a los de la lámina YOY... me oculta
+  // cosas"): la 1a versión usaba aggregateMktOrgDaily()/DATA.yoyDailyByMktOrg -- el building block
+  // del MODAL de share de YoY, deliberadamente limitado a Leads/Sales/NewCash. Pero el BOTON REAL
+  // de YoY que el usuario está comparando usa una fuente mucho más rica --
+  // buildActualsByCountryMktOrg()/buildYoyByCountryMktOrg() en viewBuilder.js, que combina 3
+  // fuentes crudas (dailyRows filtrado a Brand TV Channels para Spend/Leads/Sales/NewCash,
+  // mktorgKpiRows -- que SI tiene marketing_organization, al contrario de lo que asumí -- para
+  // FullCM/ProjRevShort/TotalEnrollments, y brandedTypeRows/dailyRows re-cortados para
+  // MediaSpend/PaidOrganicSpend) -- exactamente las mismas columnas que la tabla normal muestra.
+  // No se llama esa función directo porque no acepta filtro de día de semana (YoY nunca combina
+  // los dos a la vez); esta réplica agrega ese único filtro extra que hacía falta.
+  function weekMktOrgByCountry(orgValue, range){
+    const raw = _rawByDeckCache[row.deckId];
+    const inRange = d => d>=range.start && d<=range.end && (!weekdaySet || weekdaySet.has(parseISODate(d).getDay()));
+    const byCountry = {};
+    const get = c => byCountry[c] || (byCountry[c] = emptyTotals());
+    for(const r of raw.dailyRows){
+      if(r.marketing_organization!==orgValue || !inRange(r.date)) continue;
+      const c = bucketCountry(r.country, isBrazil);
+      if(c===null) continue;
+      if(r.channel_grouping==='Brand TV Channels') addDailyRowInto(get(c), r);
+      else if(r.channel_grouping==='Paid social ASC only' || r.channel_grouping==='Paid social without ASC') get(c).PaidOrganicSpend = (get(c).PaidOrganicSpend||0) + (r.spend||0);
+    }
+    for(const r of raw.mktorgKpiRows){
+      if(r.marketing_organization!==orgValue || !inRange(r.date)) continue;
+      const c = bucketCountry(r.country, isBrazil);
+      if(c===null) continue;
+      addKpiRowInto(get(c), r);
+    }
+    for(const r of raw.brandedTypeRows){
+      if(r.marketing_organization!==orgValue || r.type==='SEM-Brand' || !inRange(r.date)) continue;
+      const c = bucketCountry(r.country, isBrazil);
+      if(c===null) continue;
+      get(c).MediaSpend = (get(c).MediaSpend||0) + (r.spend||0);
+    }
+    return byCountry;
+  }
   function orgFilteredRow(c, range){
+    const byCountry = weekMktOrgByCountry(WEEK_ORG_NAME[weekOrgKey], range);
     const scope = isBrazil ? 'Brazil' : c;
-    const byOrg = aggregateMktOrgDaily(DATA.yoyDailyByMktOrg, range.start, range.end, weekdaySet, scope);
-    const v = byOrg[WEEK_ORG_NAME[weekOrgKey]];
-    return {...emptyRow, Leads:(v&&v.Leads)||0, Sales:(v&&v.Sales)||0, NewCash:(v&&v.NewCash)||0};
+    return {...emptyRow, ...(byCountry[scope]||{})};
   }
   const actualFor = c => weekOrgKey!=='total'
     ? orgFilteredRow(c, row.actualRange)
@@ -5162,13 +5192,9 @@ function weekWowSlide(row){
   const heroActual = isBrazil ? actualFor('Brazil') : sumDailyTrackerFields(countries.map(actualFor), DAILY_TRACKER_FIELDS);
   const heroYoy = isBrazil ? yoyFor('Brazil') : sumDailyTrackerFields(countries.map(yoyFor), DAILY_TRACKER_FIELDS);
 
-  // Restricted to the 3 honestly org-splittable columns while the Junior investment filter is
-  // active (see orgFilteredRow/MKTORG_SHARE_METRICS above) -- ignores state.cols' own saved
-  // preferences in that state on purpose, same "special mode overrides the normal column picker"
-  // pattern already used by marketingTypeMode's Leads/Ventas/% Share radio.
-  const yCols = weekOrgKey!=='total'
-    ? YOY_COL_DEFS.filter(c=> MKTORG_SHARE_METRICS.has(c.key))
-    : YOY_COL_DEFS.filter(c=> state.cols[c.key]);
+  // Ya NO se restringe a 3 columnas (corrección de la misma ronda) -- weekMktOrgByCountry() de
+  // arriba calcula todas las columnas normales igual que en modo Total, misma paridad que YoY.
+  const yCols = YOY_COL_DEFS.filter(c=> state.cols[c.key]);
   // minmax(0,Xfr), not bare Xfr -- real bug found 2026-08-24 in the OTHER hero of this lámina
   // (typeModeBodyHtml's, see its own comment): a bare `Xfr` track's minimum width defaults to its
   // CONTENT's size, not 0, so a grid can resolve a column WIDER than its fair share whenever its
@@ -5589,18 +5615,14 @@ function renderGroupMenuWeekWow(){
   // selección única, a diferencia de cuando estoy en la visual de KPIs que sí puedo seleccionar
   // varios". Vista y día de semana no cambian en absoluto.
   const inTypeMode = state.marketingTypeMode;
-  // Same "which org funded this" restriction weekWowSlide() itself applies to yCols -- only
-  // Leads/Sales/NewCash are honestly splittable by org (see that function's own comment), so the
-  // Columnas picker shows just those 3 while a non-"total" investment filter is active.
-  const mktOrgFilterActive = !!DATA.yoyDailyByMktOrg && state.marketingOrgFilter && !(state.marketingOrgFilter.oe && state.marketingOrgFilter.junior);
+  // Ya NO restringe Columnas cuando el filtro de inversión Junior está activo (corrección
+  // 2026-08-25 -- ver el comentario de weekMktOrgByCountry() en weekWowSlide): con la fuente rica
+  // nueva, todas las columnas se pueden calcular igual que en modo Total, misma paridad que YoY.
   const columnasSectionHtml = inTypeMode
     ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(selección única)','(single select)')}</span></div>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="leads" ${state.marketingTypeMetric==='leads'?'checked':''}> ${L('Leads','Leads')}</label>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="sales" ${state.marketingTypeMetric==='sales'?'checked':''}> ${L('Ventas','Sales')}</label>
        <label><input type="radio" name="weekTypeMetric" data-week-type-metric="share" ${state.marketingTypeMetric==='share'?'checked':''}> ${L('% Share','% Share')}</label>`
-    : mktOrgFilterActive
-    ? `<div class="side-menu-header">${L('Columnas','Columns')} <span class="menu-locked-note">${L('(solo lo que se puede dividir por org.)','(only what splits by org)')}</span></div>
-       ${YOY_COL_DEFS.filter(c=>MKTORG_SHARE_METRICS.has(c.key)).map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`
     : `<div class="side-menu-header">${L('Columnas','Columns')}</div>
        ${YOY_COL_DEFS.map(c=>`<label><input type="checkbox" data-week-col="${c.key}" ${state.cols[c.key]?'checked':''}> ${colLabelYoy(c.key)}</label>`).join('')}`;
   menu.innerHTML = `
