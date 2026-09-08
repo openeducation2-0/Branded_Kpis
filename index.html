@@ -1460,113 +1460,14 @@ const DECKS = {
      placed right after the highlighted country's own row for an easy side-by-side read). */
 const LATAM_EXCL_MX_AR_CO = ["Chile","Ecuador","Peru","Costa Rica","Other"];
 const WEEK_LAMINA_ROWS = [
-  { id:'oe-br-aug17-23', deckId:'OE-BR',
-    tapaId:'tapa-oe-br-aug17-23', laminaId:'week-oe-br-aug17-23',
-    tapaTitleEs:'OE Brasil · Semana 17-23 ago', tapaTitleEn:'OE Brazil · Week Aug 17-23',
-    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Mon: 60% Off promo week 2 // Tue-Sat: Test generic Fluencia vs 60% Off+Salario en Dólar // Sun: TV Off like all Sun since Mar 30, 2026` },
-  // Fila 4 del Excel dice "OE Brazil Week Aug 17-23" en la columna Tapa aunque la Marca es Junior
-  // -- corregido a "JR" aquí (2026-08-24, tras la confusión real que causó dejarlo literal): la
-  // identidad de la tapa (Marca+Región+D) sigue siendo la de esta fila, solo se arregló el texto
-  // visible para que diga la marca real en vez del texto mal copiado del Excel.
-  { id:'jr-br-aug17-23', deckId:'JR-BR',
-    tapaId:'tapa-jr-br-aug17-23', laminaId:'week-jr-br-aug17-23',
-    tapaTitleEs:'JR Brasil · Semana 17-23 ago', tapaTitleEn:'JR Brazil · Week Aug 17-23',
-    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Mon: 60% Off promo week 2 // Tue-Thu: Test generic Aprende Desde Cero Volta as Aulas vs 60% Off+same generic // Fri-Sun: TV Off WOW` },
-  { id:'oe-latam-aug17-23', deckId:'OE-LATAM',
-    tapaId:'tapa-oe-latam-aug17-23', laminaId:'week-oe-latam-aug17-23',
-    tapaTitleEs:'OE LatAm · Semana 17-23 ago', tapaTitleEn:'OE Latam · Week Aug 17-23',
-    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Latam excl MX AR --> Mon-Sun: Oferta Espec (Mon-Tue: vs 60% Off -Mon CO holiday // Wed-Sun: week 2 // Sat: TV On vs Off //  Sun: TV Off since Mar 30, 2026)
-AR--> Mon: holiday TV off // Sat-Sun: TV Off.
-MX --> Mon-Fri:  60%+Stanley promo (Mon-Tue vs 60% Off, //  Wed-Fri vs Oferta Especial //  Sat-Sun: TV Off)` },
-  // Fila 8: mismo caso que la fila 4, corregido igual.
-  { id:'jr-latam-aug17-23', deckId:'JR-LATAM',
-    tapaId:'tapa-jr-latam-aug17-23', laminaId:'week-jr-latam-aug17-23',
-    tapaTitleEs:'JR LatAm · Semana 17-23 ago', tapaTitleEn:'JR Latam · Week Aug 17-23',
-    laminaTitleEs:'Semana 17-23 ago WOW', laminaTitleEn:'Aug 17-23 Week WOW',
-    actualRange:{start:'2026-08-17', end:'2026-08-23'}, compareRange:{start:'2026-08-10', end:'2026-08-16'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-23'},
-    separationNote:`Latam excl MX AR --> Mon: TV Off due to CO holiday, Tue: only day TV On during Oferta Espec (Digital).
-MX --> Mon-Tue: only days TV On during Oferta Espec vs 60% Off (Digital).
-AR --> TV Off AR-only feeds since May 18, 2026.` },
-  // Filas 3, 5 y 7 del Excel (semana Aug 24-30): agregadas por la rutina automatica el
-  // 2026-08-25 (corte 2026-08-24), extendidas el 2026-08-26 a 2026-08-25, y COMPLETADAS en sesion
-  // interactiva el 2026-09-07 -- `actualRange` ya cubre el Aug 24-30 entero de la columna G, o sea
-  // estas 3 filas ya NO estan recortadas (regla 4.2 de Docs 08, cumplida hasta el final).
-  // `compareRange` es el mismo desplazamiento fijo de -7 dias sobre el rango final (regla 4.3),
-  // 2026-08-17..2026-08-23: semana completa contra semana completa. No necesitan mas extension.
-  // Se completaron en sesion interactiva porque la verificacion §9 exige render en navegador vivo,
-  // que una corrida desatendida de la rutina no puede hacer (12 corridas seguidas bloqueadas).
-  { id:'oe-br-aug24-30', deckId:'OE-BR',
-    tapaId:'tapa-oe-br-aug24-30', laminaId:'week-oe-br-aug24-30',
-    tapaTitleEs:'OE Brasil · Semana 24-30 ago', tapaTitleEn:'OE Brazil · Week Aug 24-30',
-    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
-    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'},
-    tapaRange:{start:'2026-08-24', end:'2026-08-30'},
-    separationNote:`Mon: Last day of 60% Off promo // Tue-Sun: 60%+JBL promo vs 60% Off promo week 2 // Sun: TV Off like all Sun since Mar 30, 2026` },
-  { id:'jr-br-aug24-30', deckId:'JR-BR',
-    tapaId:'tapa-jr-br-aug24-30', laminaId:'week-jr-br-aug24-30',
-    tapaTitleEs:'JR Brasil · Semana 24-30 ago', tapaTitleEn:'JR Brazil · Week Aug 24-30',
-    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
-    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'},
-    tapaRange:{start:'2026-08-24', end:'2026-08-30'},
-    separationNote:`Mon: Last day of 60% Off promo // Tue-Sun: 60%+JBL promo vs 60% Off promo week 2 (Fri was the only Aug Fri with TV On) // Sat-Sun: TV Off like all Sat-Sun since Feb 23, 2026` },
-  { id:'oe-latam-aug24-30', deckId:'OE-LATAM',
-    tapaId:'tapa-oe-latam-aug24-30', laminaId:'week-oe-latam-aug24-30',
-    tapaTitleEs:'OE LatAm · Semana 24-30 ago', tapaTitleEn:'OE Latam · Week Aug 24-30',
-    laminaTitleEs:'Semana 24-30 ago WOW', laminaTitleEn:'Aug 24-30 Week WOW',
-    actualRange:{start:'2026-08-24', end:'2026-08-30'}, compareRange:{start:'2026-08-17', end:'2026-08-23'},
-    tapaRange:{start:'2026-08-24', end:'2026-08-30'},
-    separationNote:`Latam excl MX AR --> Mon-Fri: 70% Off promo (Mon-Fri: vs Oferta Especial & Mon w/holiday CO) // Sat-Sun: 6+6 promo but TV Generic ad vs Oferta Especial w/Sun TV Off same Spend WOW.
-AR --> Same as Latam excl MX AR but Mon turned On TV vs Off Last Week.
-MX --> Mon-Fri: 70% Off promo vs 60%+Stanley promo //  Sat-Sun: TV Off on 6+6 promo (Digital). All week some SEM Brand campaigns Off.` },
-  // Fila 9: "Ocultar Mexico porque tenia otra promo" (columna I) -- México corría una promo
-  // distinta esos días, no es comparable al resto, se excluye por completo (hero y tabla).
-  { id:'oe-latam-oferta-especial', deckId:'OE-LATAM',
-    tapaId:'tapa-oe-latam-oferta-especial', laminaId:'week-oe-latam-oferta-especial',
-    tapaTitleEs:'Oferta Especial - 12-23 ago, 2026', tapaTitleEn:'Oferta Especial - Aug 12-23, 2026',
-    laminaTitleEs:'¿Desgaste en semana 2 de Oferta Especial?', laminaTitleEn:'Wear Out on Oferta Especial Week 2?',
-    actualRange:{start:'2026-08-19', end:'2026-08-20'}, compareRange:{start:'2026-08-12', end:'2026-08-13'},
-    // tapaRange usa el rango de la PROPIA columna D ("Aug 12-23"), no el de G (Aug 19-20) -- lo
-    // primero decide en qué orden aparece la sección entera; lo segundo es solo lo que ESTA lámina
-    // analiza dentro de esa sección.
-    tapaRange:{start:'2026-08-12', end:'2026-08-23'},
-    hideCountries:['Mexico'] },
-  // Esta fila (y las 2 de México Stanley debajo) NO tienen nada en la columna K del Excel --
-  // pedido explícito 2026-08-24: el botón "Comentario Excel" debe mostrar SOLO columna K, nunca
-  // otra columna a modo de respaldo -- sin `separationNote`, el botón queda bloqueado (ver
-  // separationNoteBtn en weekWowSlide).
-  // Filas 10-11: MISMA tapa (columna D idéntica), 2 láminas distintas debajo -- México es el país
-  // de la promo (columna I: "debe estar resaltado"), comparado contra el benchmark "Latam excl MX
-  // AR CO" que la misma columna nombra. Fila 11 compara contra una fecha EXPLÍCITA (columna H:
-  // "July 27-31"), no contra WOW -- único caso de los 7 sin comparación de 7 días.
-  { id:'oe-latam-mexico-stanley-wow', deckId:'OE-LATAM',
-    tapaId:'tapa-oe-latam-mexico-stanley', laminaId:'week-oe-latam-mexico-stanley-wow',
-    tapaTitleEs:'México 60% Off + Stanley Promo - 17-21 ago, 2026', tapaTitleEn:'Mexico 60% Off + Stanley Promo - Aug 17-21, 2026',
-    laminaTitleEs:'60% Off+Stanley Promo vs TV Off (Paid Social On)', laminaTitleEn:'60% Off+Stanley Promo vs TV Off (Paid Social On)',
-    actualRange:{start:'2026-08-17', end:'2026-08-21'}, compareRange:{start:'2026-08-10', end:'2026-08-14'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-21'},
-    highlightCountries:['Mexico'], benchmarkCountries:LATAM_EXCL_MX_AR_CO,
-    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO' },
-  { id:'oe-latam-mexico-stanley-vs60', deckId:'OE-LATAM',
-    tapaId:'tapa-oe-latam-mexico-stanley', laminaId:'week-oe-latam-mexico-stanley-vs60',
-    tapaTitleEs:'México 60% Off + Stanley Promo - 17-21 ago, 2026', tapaTitleEn:'Mexico 60% Off + Stanley Promo - Aug 17-21, 2026',
-    laminaTitleEs:'60% Off+Stanley Promo vs 60% Off', laminaTitleEn:'60% Off+Stanley Promo vs 60% Off',
-    actualRange:{start:'2026-08-17', end:'2026-08-21'}, compareRange:{start:'2026-07-27', end:'2026-07-31'},
-    tapaRange:{start:'2026-08-17', end:'2026-08-21'},
-    // Columna H de esta fila nombra una fecha EXPLÍCITA ("July 27-31"), no "WOW" -- único caso de
-    // estos 7 sin comparación de 7 días atrás; el subtítulo debe decirlo, no mostrar "WOW" a secas.
-    compareLabelEs:'Personalizado', compareLabelEn:'Custom',
-    highlightCountries:['Mexico'], benchmarkCountries:LATAM_EXCL_MX_AR_CO,
-    benchmarkLabelEs:'LatAm excl. MX, AR y CO', benchmarkLabelEn:'LatAm excl. MX, AR & CO' },
+  // VACIO A PROPOSITO (2026-09-07, pedido explicito del usuario): el Excel origen
+  // `PPT HTML\raw\Plantilla PPT.xlsx` quedo sin filas de datos, y la regla que el usuario fijo es
+  // que un origen vacio implica CERO laminas semanales publicadas -- no solo "no agregar nuevas".
+  // Al vaciar este array desaparecen automaticamente todas las tapas y laminas "Semana WOW" de las
+  // 4 combinaciones marca/region, porque WEEK_LAMINA_IDS, WEEK_TAPA_IDS, registerWeekLaminaSlides(),
+  // SLIDE_DEFS y ZOOMABLE_SLIDES se derivan todos de aqui (ver Docs 08 seccion 8).
+  // Para volver a publicar laminas: repoblar el Excel origen y reconstruir las filas siguiendo la
+  // metodologia de Docs 08, verificando con verify_laminas_headless.py antes de publicar.
 ];
 const WEEK_LAMINA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.laminaId));
 const WEEK_TAPA_IDS = new Set(WEEK_LAMINA_ROWS.map(r=>r.tapaId));
@@ -4598,7 +4499,7 @@ function slideDaily(){
       </div>`;
   return `<section class="slide slide-daily${isBrazil?' slide-daily-br':''}${dailyValueVis.hideActual?' hide-actual-value':''}${dailyValueVis.hideBudget?' hide-budget-value':''}" style="--slide-zoom:${getZoom('daily')}"><div class="slide-inner">
     ${(() => {
-      const rawLink = (label) => `<a class="raw-source-link" href="https://drive.google.com/drive/folders/1OfX-a7mMdtkegYZAJs1T3KvRfy6LkP86" target="_blank" rel="noopener">${label}</a>`;
+      const rawLink = (label) => `<a class="raw-source-link" href="https://drive.google.com/drive/folders/1zop8mD9J6Nb_1P3Y1Ad3h2a69fkJUsK2" target="_blank" rel="noopener">${label}</a>`;
       // Custom selection active (explicit ask 2026-08-18, redesigned same day into a week
       // multi-select + weekday filter): the selection can be a scattered set of days now, not
       // just one contiguous range, so the subtitle states a day COUNT plus the overall span
